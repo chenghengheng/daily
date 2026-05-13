@@ -79,7 +79,7 @@ const Wish = {
           </div>
           <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text2);margin-top:4px;">
             <span>${item.currentProgress.toFixed(1)} / ${item.price}</span>
-            <span>${pct.toFixed(0)}%</span>
+            <span>${pct.toFixed(1)}%</span>
           </div>
         </div>
         ${item.status === 'active' ? `

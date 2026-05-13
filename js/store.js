@@ -29,6 +29,10 @@ const Store = {
   getCountdownEvents() { return this._get('countdown') || []; },
   saveCountdownEvents(events) { this._set('countdown', events); },
 
+  // ---- note items ----
+  getNoteItems() { return this._get('note') || []; },
+  saveNoteItems(items) { this._set('note', items); },
+
   // ---- full data IO ----
   exportAll() {
     return {
@@ -38,6 +42,7 @@ const Store = {
       wish: this._get('wish'),
       study: this._get('study'),
       countdown: this._get('countdown'),
+      note: this._get('note'),
       bgImage: this._get('bgImage'),
     };
   },
@@ -47,11 +52,12 @@ const Store = {
     if (data.wish) this._set('wish', data.wish);
     if (data.study) this._set('study', data.study);
     if (data.countdown) this._set('countdown', data.countdown);
+    if (data.note) this._set('note', data.note);
     if (data.bgImage) this._set('bgImage', data.bgImage);
     return true;
   },
   clearAll() {
-    ['config','wish','study','countdown'].forEach(k => localStorage.removeItem(this._prefix + k));
+    ['config','wish','study','countdown','note'].forEach(k => localStorage.removeItem(this._prefix + k));
   },
 
   // ---- background image ----

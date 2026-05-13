@@ -540,6 +540,30 @@ textarea { resize: vertical; min-height: 60px; }
 }
 .stat-label { font-size: 12px; color: var(--text2); margin-top: 4px; font-weight: 500; }
 
+/* ===== NOTE PAGE ===== */
+.note-item { transition: opacity var(--duration) var(--easing); }
+.note-item--done { opacity: .55; }
+.note-item--done .note-tag { opacity: .6; }
+
+.note-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .3px;
+  line-height: 1.5;
+}
+.note-tag--task  { background: var(--accent-soft); color: var(--purple); }
+.note-tag--media { background: rgba(6,182,212,.12); color: var(--cyan); }
+.note-tag--idea  { background: var(--orange-soft); color: var(--orange); }
+
+#note-done-details summary {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+#note-done-details summary:focus { outline: none; }
+
 /* ===== ANIMATIONS ===== */
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }

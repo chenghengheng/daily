@@ -134,13 +134,14 @@ const App = {
     if (hash.startsWith('/wish')) page = 'wish';
     else if (hash.startsWith('/study')) page = 'study';
     else if (hash.startsWith('/countdown')) page = 'countdown';
+    else if (hash.startsWith('/note')) page = 'note';
 
     this.currentPage = page;
     document.querySelectorAll('.nav-item').forEach(el => {
       el.classList.toggle('active', el.dataset.page === page);
     });
 
-    const titles = { dashboard: '仪表盘', wish: '清单', study: '学习', countdown: '倒计时' };
+    const titles = { dashboard: '仪表盘', wish: '清单', study: '学习', countdown: '倒计时', note: '随手记' };
     document.getElementById('page-title').textContent = titles[page] || 'Daily';
 
     const container = document.getElementById('content');
@@ -151,6 +152,7 @@ const App = {
       case 'wish': Wish.render(container); break;
       case 'study': Study.render(container); break;
       case 'countdown': Countdown.render(container); break;
+      case 'note': Note.render(container); break;
     }
 
     animatePageEnter(container);

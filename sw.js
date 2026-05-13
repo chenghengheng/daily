@@ -1,4 +1,4 @@
-const CACHE = 'daily-v6';
+const CACHE = 'daily-v7';
 const PRECACHE = [
   './',
   './css/style.css',
@@ -10,6 +10,7 @@ const PRECACHE = [
   './js/pages/study.js',
   './js/pages/countdown.js',
   './js/pages/dashboard.js',
+  './js/pages/note.js',
   './manifest.json',
 ];
 

@@ -67,5 +67,8 @@ const Store = {
 
   // ---- helpers ----
   genId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); },
-  today() { return new Date().toISOString().slice(0, 10); },
+  today() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  },
 };

@@ -42,7 +42,8 @@ const Wish = {
     const config = Store.getConfig();
     const active = this.items.filter(i => i.status === 'active');
     const ready = active.filter(i => i.currentProgress >= i.price);
-    const sealed = active.filter(i => i.currentProgress < i.price);
+    const sealed = active.filter(i => i.currentProgress < i.price && i.sealed !== false);
+    const unsealed = active.filter(i => i.currentProgress < i.price && i.sealed === false);
     const done = this.items.filter(i => i.status !== 'active');
 
     const dailyTotal = active.reduce((s, i) => s + i.dailyProgress, 0);
@@ -75,6 +76,21 @@ const Wish = {
       ${config.showDailyCost && active.length > 0 ? `
         <div style="text-align:center;padding:8px;font-size:12px;color:var(--text3);margin-bottom:4px;">
           每日累计 <span style="color:var(--sheikah);font-weight:600;">¥${dailyTotal.toFixed(1)}/天</span>
+        </div>
+      ` : ''}
+
+      ${sealed.length > 0 || unsealed.length > 0 ? `
+        <div style="margin-bottom:4px;">
+          <div style="font-size:11px;color:var(--text3);letter-spacing:.5px;font-family:'Cinzel',serif;display:flex;align-items:center;gap:8px;">
+            <span>─ 等待中 ─</span>
+            <span style="font-size:10px;font-weight:400;font-family:'Roboto',sans-serif;">${sealed.length + unsealed.length}</span>
+          </div>
+        </div>
+      ` : ''}
+
+      ${unsealed.length > 0 ? `
+        <div style="margin-bottom:14px;">
+          <div class="card-stagger">${unsealed.map(i => this._itemCard(i, false)).join('')}</div>
         </div>
       ` : ''}
 
@@ -130,13 +146,16 @@ const Wish = {
             <button class="btn btn-sm btn-outline wish-abandon-btn">放弃</button>
             <button class="btn btn-sm btn-outline wish-delete-btn" style="margin-left:auto;color:var(--text3);font-size:11px;">删除</button>
           </div>
+        ` : item.status === 'active' ? `
+          <div style="display:flex;gap:6px;margin-top:8px;justify-content:flex-end;">
+            <button class="btn btn-sm btn-outline wish-seal-btn" style="color:var(--text3);font-size:11px;">${item.sealed !== false ? '解除封印' : '封印'}</button>
+            <button class="btn btn-sm btn-outline wish-delete-btn" style="color:var(--text3);font-size:11px;">删除</button>
+          </div>
         ` : `
           <div style="display:flex;gap:6px;margin-top:8px;justify-content:flex-end;">
-            ${item.status !== 'active' ? `
-              <span style="font-size:11px;color:var(--text2);margin-right:auto;">
-                最终进度：${item.currentProgress.toFixed(1)} / ${item.price} · ${(item.progressLog || item.clickLog || []).length} 天
-              </span>
-            ` : ''}
+            <span style="font-size:11px;color:var(--text2);margin-right:auto;">
+              最终进度：${item.currentProgress.toFixed(1)} / ${item.price} · ${(item.progressLog || item.clickLog || []).length} 天
+            </span>
             <button class="btn btn-sm btn-outline wish-delete-btn" style="color:var(--text3);font-size:11px;">删除</button>
           </div>
         `}
@@ -169,6 +188,14 @@ const Wish = {
         e.stopPropagation();
         const id = e.target.closest('.card').dataset.id;
         this._deleteItem(id);
+      });
+    });
+
+    container.querySelectorAll('.wish-seal-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const id = e.target.closest('.card').dataset.id;
+        this._toggleSeal(id);
       });
     });
   },
@@ -273,6 +300,14 @@ const Wish = {
     this.render(document.getElementById('content'));
   },
 
+  _toggleSeal(id) {
+    const item = this.items.find(i => i.id === id);
+    if (!item) return;
+    item.sealed = item.sealed === false;
+    Store.saveWishItems(this.items);
+    this.render(document.getElementById('content'));
+  },
+
   _deleteItem(id) {
     const item = this.items.find(i => i.id === id);
     if (!item) return;
@@ -340,6 +375,7 @@ const Wish = {
         dailyProgress: daily,
         currentProgress: 0,
         status: 'active',
+        sealed: true,
         progressLog: [],
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),

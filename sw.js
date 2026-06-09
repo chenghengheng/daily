@@ -1,4 +1,4 @@
-const CACHE = 'daily-v8';
+const CACHE = 'daily-v9';
 const PRECACHE = [
   './',
   './css/style.css',

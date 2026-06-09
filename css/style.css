@@ -529,6 +529,38 @@ textarea { resize: vertical; min-height: 60px; }
 .note-tag--media { background: var(--green-soft); color: var(--green); border: 1px solid rgba(111,212,156,.2); }
 .note-tag--idea  { background: rgba(252,196,19,.12); color: var(--gold); border: 1px solid rgba(252,196,19,.2); }
 
+/* ===== WISH — Sealed + Ready ===== */
+.wish-item--ready {
+  border-color: var(--gold) !important;
+  box-shadow: 0 0 20px var(--gold-glow);
+  animation: goldPulse 3s ease-in-out infinite alternate;
+}
+.wish-item--ready::after {
+  border-color: rgba(252,196,19,0.5) !important;
+}
+@keyframes goldPulse {
+  from { box-shadow: 0 0 10px var(--gold-glow); }
+  to   { box-shadow: 0 0 24px var(--gold-glow), 0 0 48px rgba(252,196,19,0.15); }
+}
+
+.sealed-toggle {
+  background: rgba(0,0,0,0.25);
+  border: 1px solid rgba(226,222,211,0.12);
+  color: var(--text3);
+  font-style: italic;
+  font-size: 12px;
+  padding: 6px 16px;
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+  transition: color var(--duration) var(--easing), border-color var(--duration) var(--easing);
+}
+.sealed-toggle:hover {
+  color: var(--text2);
+  border-color: var(--border);
+}
+
+#wish-sealed-body .card { margin-top: 8px; }
+
 #note-done-details summary {
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;

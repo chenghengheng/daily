@@ -1,35 +1,51 @@
 const Wish = {
   items: [],
-  today: '',
+  _sealedVisible: false,
 
   render(container) {
-    this.today = Store.today();
     this.items = Store.getWishItems();
-    this._resetDailyFlags();
+    this._applyAutoProgress();
+    this._sealedVisible = false;
     container.innerHTML = this._view();
     this._bind(container);
   },
 
-  _resetDailyFlags() {
+  // Auto-accumulate progress based on elapsed days
+  _applyAutoProgress() {
+    const today = Store.today();
     let changed = false;
     this.items.forEach(item => {
-      if (item.todayDate !== this.today) {
-        item.todayClicked = false;
-        item.todayDate = this.today;
-        changed = true;
+      if (item.status !== 'active') return;
+      if (item.currentProgress >= item.price) return;
+      const lastDate = item.updatedAt ? item.updatedAt.slice(0, 10) : item.createdAt.slice(0, 10);
+      if (lastDate >= today) return;
+      const daysDiff = Math.floor((new Date(today + 'T00:00:00') - new Date(lastDate + 'T00:00:00')) / 86400000);
+      if (daysDiff <= 0) return;
+      const added = Math.min(item.price - item.currentProgress, daysDiff * item.dailyProgress);
+      if (added <= 0) return;
+      item.currentProgress += added;
+      if (!item.progressLog) item.progressLog = [];
+      for (let i = 1; i <= daysDiff; i++) {
+        const d = new Date(lastDate + 'T00:00:00');
+        d.setDate(d.getDate() + i);
+        const ds = d.toISOString().slice(0, 10);
+        if (ds > today) break;
+        item.progressLog.push({ date: ds, amount: item.dailyProgress });
       }
+      item.updatedAt = new Date().toISOString();
+      changed = true;
     });
     if (changed) Store.saveWishItems(this.items);
   },
 
   _view() {
     const config = Store.getConfig();
-    const remaining = config.MAX_DAILY_WISH_CLICKS - this.items.filter(i =>
-      i.status === 'active' && i.todayClicked && i.todayDate === this.today
-    ).length;
-
     const active = this.items.filter(i => i.status === 'active');
+    const ready = active.filter(i => i.currentProgress >= i.price);
+    const sealed = active.filter(i => i.currentProgress < i.price);
     const done = this.items.filter(i => i.status !== 'active');
+
+    const dailyTotal = active.reduce((s, i) => s + i.dailyProgress, 0);
 
     return `
       <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;">
@@ -37,31 +53,57 @@ const Wish = {
         <button class="btn btn-outline" id="wish-log-btn">📋 操作日志</button>
         <button class="btn btn-outline" id="wish-data-btn">⚙️ 数据管理</button>
       </div>
-      <div class="card" style="text-align:center;padding:12px;">
-        <span style="font-size:13px;color:var(--text2);">
-          今日剩余可点：<strong style="color:var(--sheikah);font-size:18px;">${Math.max(0, remaining)}</strong> / ${config.MAX_DAILY_WISH_CLICKS} 个
-        </span>
-      </div>
-      ${active.length === 0 ? `
+
+      ${active.length === 0 && done.length === 0 ? `
         <div class="empty-state">
-          <p>还没有想买的东西</p>
-          <p style="font-size:12px;margin-top:8px;">记录你想买的非必需品，让冲动飞一会儿</p>
+          <p>还没有物品</p>
+          <p style="font-size:12px;margin-top:8px;">添加你想买的东西，让它自己积累等待期</p>
         </div>
-      ` : `<div class="card-stagger">${active.map(item => this._itemCard(item)).join('')}</div>`}
+      ` : ''}
+
+      ${ready.length > 0 ? `
+        <div style="margin-bottom:14px;">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2" style="filter:drop-shadow(0 0 4px var(--gold-glow));"><polygon points="12,2 22,12 12,22 2,12"/><circle cx="12" cy="12" r="2.5"/></svg>
+            <span style="font-family:'Cinzel',serif;font-size:14px;font-weight:700;color:var(--gold);text-shadow:0 0 8px var(--gold-glow);">可抉择</span>
+            <span style="font-size:12px;color:var(--text2);">${ready.length}</span>
+          </div>
+          <div class="card-stagger">${ready.map(i => this._itemCard(i, true)).join('')}</div>
+        </div>
+      ` : ''}
+
+      ${config.showDailyCost && active.length > 0 ? `
+        <div style="text-align:center;padding:8px;font-size:12px;color:var(--text3);margin-bottom:4px;">
+          每日累计 <span style="color:var(--sheikah);font-weight:600;">¥${dailyTotal.toFixed(1)}/天</span>
+        </div>
+      ` : ''}
+
+      ${sealed.length > 0 ? `
+        <div style="text-align:center;margin-bottom:14px;" id="wish-sealed-section">
+          <button class="btn btn-sm sealed-toggle" id="wish-sealed-btn">
+            ▸ 封印中（${sealed.length}）
+          </button>
+          <div id="wish-sealed-body" style="display:none;margin-top:8px;">
+            ${sealed.map(i => this._itemCard(i, false)).join('')}
+          </div>
+        </div>
+      ` : ''}
+
       ${done.length > 0 ? `
-        <h3 style="font-size:13px;color:var(--text2);margin:16px 0 8px;">已处理</h3>
-        ${done.map(item => this._itemCard(item)).join('')}
+        <details style="margin-top:8px;" id="wish-done-details">
+          <summary style="cursor:pointer;font-size:13px;color:var(--text2);padding:8px 0;user-select:none;">
+            已处理（${done.length}）
+          </summary>
+          <div style="margin-top:4px;">${done.map(i => this._itemCard(i, false)).join('')}</div>
+        </details>
       ` : ''}
     `;
   },
 
-  _itemCard(item) {
+  _itemCard(item, isReady) {
     const pct = Math.min(100, (item.currentProgress / item.price) * 100);
-    const canClick = item.status === 'active' && !item.todayClicked;
-    const fully = item.currentProgress >= item.price;
-
     return `
-      <div class="card" data-id="${item.id}">
+      <div class="card wish-item ${isReady ? 'wish-item--ready' : ''}" data-id="${item.id}">
         <div style="display:flex;justify-content:space-between;align-items:start;">
           <div>
             <div style="font-size:16px;font-weight:600;">${this._esc(item.name)}</div>
@@ -82,24 +124,17 @@ const Wish = {
             <span>${pct.toFixed(1)}%</span>
           </div>
         </div>
-        ${item.status === 'active' ? `
+        ${isReady ? `
           <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;">
-            ${fully ? `
-              <button class="btn btn-sm btn-primary wish-confirm-btn">确认购买</button>
-              <button class="btn btn-sm btn-outline wish-abandon-btn">放弃</button>
-            ` : `
-              <button class="btn btn-sm ${canClick ? 'btn-primary' : 'btn-outline'} wish-click-btn" ${!canClick ? 'disabled style=opacity:.5' : ''}>
-                ${canClick ? `✓ 想要 (+${item.dailyProgress})` : '今天已点'}
-              </button>
-              ${item.todayClicked ? `<button class="btn btn-sm btn-outline wish-extra-btn">再加一次</button>` : ''}
-              <button class="btn btn-sm btn-outline wish-abandon-btn" style="margin-left:auto;">放弃</button>
-            `}
+            <button class="btn btn-sm btn-primary wish-confirm-btn">确认购买</button>
+            <button class="btn btn-sm btn-outline wish-abandon-btn" style="margin-left:auto;">放弃</button>
           </div>
-        ` : `
+        ` : ''}
+        ${!isReady && item.status !== 'active' ? `
           <div style="font-size:11px;color:var(--text2);margin-top:6px;">
-            最终进度：${item.currentProgress.toFixed(1)} / ${item.price} · ${item.clickLog ? item.clickLog.length : 0} 次点击
+            最终进度：${item.currentProgress.toFixed(1)} / ${item.price} · ${(item.progressLog || item.clickLog || []).length} 天
           </div>
-        `}
+        ` : ''}
       </div>
     `;
   },
@@ -108,18 +143,7 @@ const Wish = {
     container.querySelector('#wish-add-btn')?.addEventListener('click', () => this._showAddModal());
     container.querySelector('#wish-log-btn')?.addEventListener('click', () => this._showLogModal());
     container.querySelector('#wish-data-btn')?.addEventListener('click', () => this._showDataModal());
-    container.querySelectorAll('.wish-click-btn').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        const id = e.target.closest('.card').dataset.id;
-        this._clickItem(id, false);
-      });
-    });
-    container.querySelectorAll('.wish-extra-btn').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        const id = e.target.closest('.card').dataset.id;
-        this._showExtraReasonModal(id);
-      });
-    });
+
     container.querySelectorAll('.wish-confirm-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
         const id = e.target.closest('.card').dataset.id;
@@ -132,63 +156,67 @@ const Wish = {
         this._abandonItem(id);
       });
     });
+
+    container.querySelector('#wish-sealed-btn')?.addEventListener('click', () => this._showSealedConfirm(container));
   },
 
-  _clickItem(id, isExtra) {
-    const item = this.items.find(i => i.id === id);
-    if (!item || item.status !== 'active') return;
-
-    const config = Store.getConfig();
-    const clickedToday = this.items.filter(i =>
-      i.status === 'active' && i.todayClicked && i.todayDate === this.today
-    ).length;
-
-    if (!isExtra && item.todayClicked) return;
-    if (!isExtra && clickedToday >= config.MAX_DAILY_WISH_CLICKS) {
-      this._toast(`每天最多点 ${config.MAX_DAILY_WISH_CLICKS} 个物品`);
+  _showSealedConfirm(container) {
+    if (this._sealedVisible) {
+      // Already visible, just toggle off
+      this._sealedVisible = false;
+      const body = container.querySelector('#wish-sealed-body');
+      const btn = container.querySelector('#wish-sealed-btn');
+      if (body) body.style.display = 'none';
+      if (btn) btn.textContent = `▸ 封印中（${this.items.filter(i => i.status === 'active' && i.currentProgress < i.price).length}）`;
       return;
     }
 
-    item.currentProgress += item.dailyProgress;
-    item.todayClicked = true;
-    item.todayDate = this.today;
-    if (!item.clickLog) item.clickLog = [];
-    item.clickLog.push({ date: this.today, reason: isExtra ? '(额外)' : null });
-    item.updatedAt = new Date().toISOString();
-    Store.saveWishItems(this.items);
-    this.render(document.getElementById('content'));
-  },
-
-  _showExtraReasonModal(id) {
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
     overlay.innerHTML = `
       <div class="modal">
-        <h2>再加一次</h2>
-        <p style="font-size:13px;color:var(--text2);margin-bottom:12px;">说明为什么今天特别想要这个物品：</p>
-        <div class="form-group">
-          <textarea id="extra-reason" placeholder="输入理由..." rows="3"></textarea>
-        </div>
+        <h2>封印之物</h2>
+        <p style="font-size:14px;color:var(--text);line-height:1.6;margin-bottom:8px;">
+          这些物品正在积累等待期。频繁查看会削弱等待效果，让冲动战胜理性。
+        </p>
+        <p style="font-size:13px;color:var(--text2);">确定要继续吗？</p>
         <div class="modal-actions">
-          <button class="btn btn-outline" id="extra-cancel">取消</button>
-          <button class="btn btn-primary" id="extra-confirm">确认 +1</button>
+          <button class="btn btn-outline" id="sealed-cancel">不必了</button>
+          <button class="btn btn-primary" id="sealed-next">坚持查看</button>
         </div>
       </div>
     `;
     document.body.appendChild(overlay);
-    overlay.querySelector('#extra-cancel').addEventListener('click', () => overlay.remove());
-    overlay.querySelector('#extra-confirm').addEventListener('click', () => {
-      const reason = overlay.querySelector('#extra-reason').value.trim();
-      if (!reason) { this._toast('请输入理由'); return; }
-      const item = this.items.find(i => i.id === id);
-      if (!item) return;
-      item.currentProgress += item.dailyProgress;
-      if (!item.clickLog) item.clickLog = [];
-      item.clickLog.push({ date: this.today, reason });
-      item.updatedAt = new Date().toISOString();
-      Store.saveWishItems(this.items);
+
+    overlay.querySelector('#sealed-cancel').addEventListener('click', () => overlay.remove());
+    overlay.querySelector('#sealed-next').addEventListener('click', () => {
       overlay.remove();
-      this.render(document.getElementById('content'));
+      // Step 2
+      const overlay2 = document.createElement('div');
+      overlay2.className = 'modal-overlay';
+      overlay2.innerHTML = `
+        <div class="modal">
+          <h2>最后一次提醒</h2>
+          <p style="font-size:14px;color:var(--text);line-height:1.6;margin-bottom:8px;">
+            进度条和物品信息会影响你的判断。你真的需要现在就查看吗？
+          </p>
+          <div class="modal-actions">
+            <button class="btn btn-outline" id="sealed-cancel2">算了</button>
+            <button class="btn btn-primary" id="sealed-confirm">我确定</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(overlay2);
+
+      overlay2.querySelector('#sealed-cancel2').addEventListener('click', () => overlay2.remove());
+      overlay2.querySelector('#sealed-confirm').addEventListener('click', () => {
+        overlay2.remove();
+        this._sealedVisible = true;
+        const body = document.querySelector('#wish-sealed-body');
+        const btn = document.querySelector('#wish-sealed-btn');
+        if (body) body.style.display = 'block';
+        if (btn) btn.textContent = `▾ 封印中（${this.items.filter(i => i.status === 'active' && i.currentProgress < i.price).length}）`;
+      });
     });
   },
 
@@ -201,7 +229,7 @@ const Wish = {
       <div class="modal">
         <h2>确认购买</h2>
         <p style="font-size:14px;">真的买 <strong>${this._esc(item.name)}</strong> 吗？</p>
-        <p style="font-size:12px;color:var(--text2);margin-top:8px;">冷却期已过，由你决定。</p>
+        <p style="font-size:12px;color:var(--text2);margin-top:8px;">等待期已到，由你决定。</p>
         <div class="modal-actions">
           <button class="btn btn-outline" id="purchase-cancel">再想想</button>
           <button class="btn btn-primary" id="purchase-yes">确认购买</button>
@@ -273,9 +301,7 @@ const Wish = {
         dailyProgress: daily,
         currentProgress: 0,
         status: 'active',
-        todayClicked: false,
-        todayDate: null,
-        clickLog: [],
+        progressLog: [],
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       });
@@ -289,9 +315,10 @@ const Wish = {
     // Collect all logs grouped by date
     const dateMap = {};
     this.items.forEach(item => {
-      (item.clickLog || []).forEach(log => {
+      const logs = item.progressLog || item.clickLog || [];
+      logs.forEach(log => {
         if (!dateMap[log.date]) dateMap[log.date] = [];
-        dateMap[log.date].push({ name: item.name, reason: log.reason });
+        dateMap[log.date].push({ name: item.name, reason: log.reason || null });
       });
     });
 
@@ -313,8 +340,8 @@ const Wish = {
     const renderCal = () => {
       const firstDay = new Date(viewYear, viewMonth, 1);
       const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
-      let startW = firstDay.getDay(); // 0=Sun
-      startW = startW === 0 ? 6 : startW - 1; // convert to Mon=0
+      let startW = firstDay.getDay();
+      startW = startW === 0 ? 6 : startW - 1;
 
       const todayStr = Store.today();
       const monthLabel = `${viewYear}年${viewMonth + 1}月`;
@@ -343,7 +370,6 @@ const Wish = {
           </div>`;
       }
 
-      // Has months with logs before/after
       const hasPrev = dates.some(d => d < `${viewYear}-${pad2(viewMonth + 1)}-01`);
       const hasNext = dates.some(d => d >= `${viewYear}-${pad2(viewMonth + 2)}-01`);
 
@@ -371,7 +397,6 @@ const Wish = {
           ${entries.map(e => `
             <div class="cal-detail__row">
               <span class="cal-detail__name">${this._esc(e.name)}</span>
-              ${e.reason ? `<span class="cal-detail__reason">${this._esc(e.reason)}</span>` : ''}
             </div>
           `).join('')}
         </div>
@@ -386,7 +411,6 @@ const Wish = {
       modal.querySelectorAll('.cal-day--has').forEach(el => {
         el.addEventListener('click', () => {
           selectedDate = el.dataset.date;
-          // Re-render just the detail + update selected state
           const detail = modal.querySelector('.cal-detail');
           if (detail) detail.outerHTML = renderDetail();
           modal.querySelectorAll('.cal-day--sel').forEach(s => s.classList.remove('cal-day--sel'));
@@ -460,7 +484,6 @@ const Wish = {
           try {
             const data = JSON.parse(ev.target.result);
             if (Store.importAll(data)) {
-              // Re-apply background if present in imported data
               const bg = Store.getBgImage();
               if (bg) {
                 document.body.classList.add('has-bg');
@@ -501,6 +524,7 @@ const Wish = {
   _toast(msg) { Toast.show(msg); },
 
   _esc(s) {
+    if (s === null || s === undefined) return '';
     const d = document.createElement('div');
     d.textContent = s;
     return d.innerHTML;

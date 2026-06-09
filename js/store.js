@@ -11,7 +11,7 @@ const Store = {
 
   // ---- config ----
   getConfig() {
-    return { MAX_DAILY_WISH_CLICKS: 3, ...this._get('config') };
+    return { MAX_DAILY_WISH_CLICKS: 3, showDailyCost: true, ...this._get('config') };
   },
   updateConfig(partial) {
     this._set('config', { ...this.getConfig(), ...partial });

@@ -5,11 +5,8 @@ const Dashboard = {
     const events = Store.getCountdownEvents();
 
     const activeWish = wishItems.filter(i => i.status === 'active');
-    const config = Store.getConfig();
-    const remaining = config.MAX_DAILY_WISH_CLICKS - activeWish.filter(i =>
-      i.todayClicked && i.todayDate === Store.today()
-    ).length;
     const wishReady = activeWish.filter(i => i.currentProgress >= i.price).length;
+    const wishSealed = activeWish.filter(i => i.currentProgress < i.price).length;
 
     const plan = plans.length > 0 ? plans[0] : null;
     const currentPhase = plan ? plan.phases[plan.currentPhaseIndex || 0] : null;
@@ -37,9 +34,9 @@ const Dashboard = {
         </div>
         <div class="stat-card">
           <div class="stat-number" style="color:${wishReady > 0 ? 'var(--gold)' : 'var(--sheikah)'}">
-            ${Math.max(0, remaining)}
+            ${wishSealed}
           </div>
-          <div class="stat-label">今日可点 / ${config.MAX_DAILY_WISH_CLICKS}</div>
+          <div class="stat-label">封印中</div>
         </div>
         <div class="stat-card">
           <div class="stat-number">${plan ? currentPhase?.title || '-' : '-'}</div>

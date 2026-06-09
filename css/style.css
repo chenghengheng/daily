@@ -529,6 +529,46 @@ textarea { resize: vertical; min-height: 60px; }
 .note-tag--media { background: var(--green-soft); color: var(--green); border: 1px solid rgba(111,212,156,.2); }
 .note-tag--idea  { background: rgba(252,196,19,.12); color: var(--gold); border: 1px solid rgba(252,196,19,.2); }
 
+/* ===== COUNTDOWN TYPES ===== */
+.countdown-card {
+  transition: opacity var(--duration) var(--easing), border-color var(--duration) var(--easing);
+}
+.countdown-event {
+  border-left: 3px solid var(--sheikah);
+}
+.countdown-reminder {
+  border-left: 3px solid var(--gold);
+}
+.countdown-type-badge {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .2px;
+  line-height: 1.6;
+}
+.countdown-type--event {
+  background: var(--sheikah-soft);
+  color: var(--sheikah);
+  border: 1px solid rgba(60,211,252,.2);
+}
+.countdown-type--reminder {
+  background: rgba(252,196,19,.12);
+  color: var(--gold);
+  border: 1px solid rgba(252,196,19,.2);
+}
+.countdown-type--auto {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+}
+
+#cd-expired-details summary {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+#cd-expired-details summary:focus { outline: 2px solid var(--sheikah); outline-offset: 2px; }
+
 /* ===== WISH — Sealed + Ready ===== */
 .wish-item--ready {
   border-color: var(--gold) !important;

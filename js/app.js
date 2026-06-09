@@ -90,11 +90,6 @@ const App = {
   currentPage: '',
 
   init() {
-    // Inject ambient background div (real element for iOS Safari animation reliability)
-    const ambient = document.createElement('div');
-    ambient.id = 'ambient';
-    document.body.insertBefore(ambient, document.body.firstChild);
-
     this._applyBgImage();
     Countdown.cleanupExpiredAuto();  // remove expired imported countdown events
     window.addEventListener('hashchange', () => this.route());

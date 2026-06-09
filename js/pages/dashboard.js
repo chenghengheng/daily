@@ -36,7 +36,7 @@ const Dashboard = {
           <div class="stat-label">进行中 · 清单</div>
         </div>
         <div class="stat-card">
-          <div class="stat-number" style="color:${wishReady > 0 ? 'var(--orange)' : 'var(--accent)'}">
+          <div class="stat-number" style="color:${wishReady > 0 ? 'var(--gold)' : 'var(--sheikah)'}">
             ${Math.max(0, remaining)}
           </div>
           <div class="stat-label">今日可点 / ${config.MAX_DAILY_WISH_CLICKS}</div>
@@ -52,10 +52,10 @@ const Dashboard = {
       </div>
 
       ${wishReady > 0 ? `
-        <div class="card" style="border-color:var(--orange);">
+        <div class="card" style="border-color:var(--gold);">
           <div style="display:flex;justify-content:space-between;align-items:center;">
             <span style="font-size:14px;font-weight:600;">🎯 ${wishReady} 个物品已达目标</span>
-            <a href="#/wish" style="color:var(--accent);font-size:13px;text-decoration:none;">去看看 →</a>
+            <a href="#/wish" style="color:var(--sheikah);font-size:13px;text-decoration:none;">去看看 →</a>
           </div>
         </div>
       ` : ''}
@@ -66,7 +66,7 @@ const Dashboard = {
           ${upcoming.map(ev => `
             <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:14px;border-bottom:1px solid var(--border);">
               <span>${this._esc(ev.title)}</span>
-              <span style="color:${ev.diff <= 7 ? 'var(--orange)' : 'var(--accent)'};font-weight:600;">${ev.diff} 天</span>
+              <span style="color:${ev.diff <= 7 ? 'var(--gold)' : 'var(--sheikah)'};font-weight:600;">${ev.diff} 天</span>
             </div>
           `).join('')}
         </div>
@@ -74,19 +74,19 @@ const Dashboard = {
 
       <div class="card-stagger" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
         <a href="#/wish" class="card card-link" style="text-align:center;padding:20px;">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:block;margin:0 auto;color:var(--accent);"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:block;margin:0 auto;color:var(--sheikah);"><polygon points="12,3 20,12 12,21 4,12"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
           <div style="font-size:13px;margin-top:8px;color:var(--text);">清单</div>
         </a>
         <a href="#/study" class="card card-link" style="text-align:center;padding:20px;">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:block;margin:0 auto;color:var(--accent);"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:block;margin:0 auto;color:var(--sheikah);"><rect x="6" y="2" width="12" height="20" rx="2"/><line x1="9" y1="7" x2="15" y2="7"/><line x1="9" y1="11" x2="15" y2="11"/><line x1="9" y1="15" x2="13" y2="15"/></svg>
           <div style="font-size:13px;margin-top:8px;color:var(--text);">学习</div>
         </a>
         <a href="#/countdown" class="card card-link" style="text-align:center;padding:20px;">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:block;margin:0 auto;color:var(--accent);"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:block;margin:0 auto;color:var(--sheikah);"><polygon points="12,1 18,8 6,8"/><rect x="8" y="8" width="8" height="3"/><polygon points="6,16 18,16 12,23"/><line x1="12" y1="11" x2="12" y2="16"/></svg>
           <div style="font-size:13px;margin-top:8px;color:var(--text);">倒计时</div>
         </a>
         <div class="card card-link" style="text-align:center;padding:20px;" id="dashboard-settings-btn">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:block;margin:0 auto;color:var(--accent);"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:block;margin:0 auto;color:var(--sheikah);"><polygon points="12,2 22,12 12,22 2,12"/><circle cx="12" cy="12" r="2.5"/></svg>
           <div style="font-size:13px;margin-top:8px;color:var(--text);">个性化</div>
         </div>
       </div>

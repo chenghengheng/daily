@@ -34,7 +34,7 @@ const Countdown = {
                 <div style="font-size:12px;color:var(--text2);margin-top:2px;">${ev.date}</div>
               </div>
               <div style="text-align:right;">
-                <div class="countdown-number" style="${diff <= 7 && !expired ? 'background:linear-gradient(135deg,var(--orange),#fbbf24);-webkit-background-clip:text;background-clip:text;' : ''}">
+                <div class="countdown-number" style="${diff <= 7 && !expired ? 'color:var(--gold);text-shadow:0 0 12px var(--gold-glow);' : ''}">
                   ${expired ? Math.abs(diff) : diff}
                 </div>
                 <div class="countdown-label">${expired ? '天前' : '天后'}</div>

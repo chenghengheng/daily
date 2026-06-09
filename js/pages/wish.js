@@ -39,7 +39,7 @@ const Wish = {
       </div>
       <div class="card" style="text-align:center;padding:12px;">
         <span style="font-size:13px;color:var(--text2);">
-          今日剩余可点：<strong style="color:var(--accent);font-size:18px;">${Math.max(0, remaining)}</strong> / ${config.MAX_DAILY_WISH_CLICKS} 个
+          今日剩余可点：<strong style="color:var(--sheikah);font-size:18px;">${Math.max(0, remaining)}</strong> / ${config.MAX_DAILY_WISH_CLICKS} 个
         </span>
       </div>
       ${active.length === 0 ? `

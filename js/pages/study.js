@@ -64,7 +64,7 @@ const Study = {
         <div style="font-size:13px;color:var(--text2);">当前计划</div>
         <div style="font-size:18px;font-weight:700;margin:2px 0;">${this._esc(plan.title)}</div>
         ${currentPhase ? `
-          <div style="font-size:13px;color:var(--accent);margin-top:4px;">
+          <div style="font-size:13px;color:var(--sheikah);margin-top:4px;">
             第 ${currentPhase.weeks} 周：${this._esc(currentPhase.title)}
           </div>
           ${currentPhase.goal ? `<div style="font-size:12px;color:var(--text2);margin-top:4px;">目标：${this._esc(currentPhase.goal)}</div>` : ''}
@@ -125,7 +125,7 @@ const Study = {
                   <div class="task-check ${task.status === 'done' ? 'done' : ''}" data-task-check></div>
                   <div class="task-body">
                     <div class="content">
-                      ${isToday ? '<span style="color:var(--orange);font-weight:600;">● </span>' : ''}
+                      ${isToday ? '<span style="color:var(--gold);font-weight:600;">● </span>' : ''}
                       <span style="${task.status === 'done' ? 'text-decoration:line-through;opacity:.5;' : ''}">
                         ${task.day ? `<span style="color:var(--text2);">${this._esc(task.day)}</span> ` : ''}
                         ${this._esc(task.content || '（待填写）')}
@@ -413,7 +413,7 @@ const Study = {
               <div class="name ${p.id === this.currentPlanId ? '' : ''}">${this._esc(p.title)}</div>
               <div class="meta">${p.phases.length} 阶段 · ${p.phases.reduce((s, ph) => s + ph.tasks.length, 0)} 任务</div>
             </div>
-            ${p.id === this.currentPlanId ? '<span style="color:var(--accent);font-size:12px;">当前</span>' : ''}
+            ${p.id === this.currentPlanId ? '<span style="color:var(--sheikah);font-size:12px;">当前</span>' : ''}
           </div>
         `).join('')}
         <div class="modal-actions">

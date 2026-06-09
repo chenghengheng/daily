@@ -6,7 +6,7 @@ const Dashboard = {
 
     const activeWish = wishItems.filter(i => i.status === 'active');
     const wishReady = activeWish.filter(i => i.currentProgress >= i.price).length;
-    const wishSealed = activeWish.filter(i => i.currentProgress < i.price).length;
+    const wishSealed = activeWish.filter(i => i.currentProgress < i.price && i.sealed !== false).length;
 
     const plan = plans.length > 0 ? plans[0] : null;
     const currentPhase = plan ? plan.phases[plan.currentPhaseIndex || 0] : null;

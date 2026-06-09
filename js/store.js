@@ -65,6 +65,19 @@ const Store = {
   saveBgImage(dataUrl) { this._set('bgImage', dataUrl); },
   clearBgImage() { localStorage.removeItem(this._prefix + 'bgImage'); },
 
+  // ---- wishlist-specific data IO ---- (用于清单页面独立导入导出)
+  exportWishData() {
+    return { version: 1, exportedAt: new Date().toISOString(), wish: this._get('wish') };
+  },
+  importWishData(data) {
+    if (!data || !data.wish) return false;
+    this._set('wish', data.wish);
+    return true;
+  },
+  clearWishData() {
+    localStorage.removeItem(this._prefix + 'wish');
+  },
+
   // ---- helpers ----
   genId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); },
   today() {

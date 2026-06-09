@@ -127,14 +127,19 @@ const Wish = {
         ${isReady ? `
           <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;">
             <button class="btn btn-sm btn-primary wish-confirm-btn">确认购买</button>
-            <button class="btn btn-sm btn-outline wish-abandon-btn" style="margin-left:auto;">放弃</button>
+            <button class="btn btn-sm btn-outline wish-abandon-btn">放弃</button>
+            <button class="btn btn-sm btn-outline wish-delete-btn" style="margin-left:auto;color:var(--text3);font-size:11px;">删除</button>
           </div>
-        ` : ''}
-        ${!isReady && item.status !== 'active' ? `
-          <div style="font-size:11px;color:var(--text2);margin-top:6px;">
-            最终进度：${item.currentProgress.toFixed(1)} / ${item.price} · ${(item.progressLog || item.clickLog || []).length} 天
+        ` : `
+          <div style="display:flex;gap:6px;margin-top:8px;justify-content:flex-end;">
+            ${item.status !== 'active' ? `
+              <span style="font-size:11px;color:var(--text2);margin-right:auto;">
+                最终进度：${item.currentProgress.toFixed(1)} / ${item.price} · ${(item.progressLog || item.clickLog || []).length} 天
+              </span>
+            ` : ''}
+            <button class="btn btn-sm btn-outline wish-delete-btn" style="color:var(--text3);font-size:11px;">删除</button>
           </div>
-        ` : ''}
+        `}
       </div>
     `;
   },
@@ -158,6 +163,14 @@ const Wish = {
     });
 
     container.querySelector('#wish-sealed-btn')?.addEventListener('click', () => this._showSealedConfirm(container));
+
+    container.querySelectorAll('.wish-delete-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const id = e.target.closest('.card').dataset.id;
+        this._deleteItem(id);
+      });
+    });
   },
 
   _showSealedConfirm(container) {
@@ -258,6 +271,32 @@ const Wish = {
     const item = this.items.find(i => i.id === id);
     if (item) { item.status = 'abandoned'; Store.saveWishItems(this.items); }
     this.render(document.getElementById('content'));
+  },
+
+  _deleteItem(id) {
+    const item = this.items.find(i => i.id === id);
+    if (!item) return;
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML = `
+      <div class="modal">
+        <h2>删除物品</h2>
+        <p style="font-size:14px;">确定永久删除 <strong>${this._esc(item.name)}</strong> 吗？<br><span style="font-size:12px;color:var(--text2);">此操作不可恢复。</span></p>
+        <div class="modal-actions">
+          <button class="btn btn-outline" id="del-cancel">取消</button>
+          <button class="btn btn-danger" id="del-confirm">删除</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+    overlay.querySelector('#del-cancel').addEventListener('click', () => overlay.remove());
+    overlay.querySelector('#del-confirm').addEventListener('click', () => {
+      this.items = this.items.filter(i => i.id !== id);
+      Store.saveWishItems(this.items);
+      overlay.remove();
+      this.render(document.getElementById('content'));
+      this._toast('已删除');
+    });
   },
 
   _showAddModal() {
@@ -447,11 +486,12 @@ const Wish = {
     overlay.className = 'modal-overlay';
     overlay.innerHTML = `
       <div class="modal">
-        <h2>数据管理</h2>
+        <h2>清单数据管理</h2>
+        <p style="font-size:12px;color:var(--text2);margin-bottom:12px;">仅操作清单物品数据，不影响其他页面</p>
         <div style="display:flex;flex-direction:column;gap:8px;">
-          <button class="btn btn-outline btn-block" id="data-export">📤 导出数据</button>
-          <button class="btn btn-outline btn-block" id="data-import">📥 导入数据</button>
-          <button class="btn btn-danger btn-block" id="data-clear">🗑️ 清空所有数据</button>
+          <button class="btn btn-outline btn-block" id="data-export">📤 导出清单数据</button>
+          <button class="btn btn-outline btn-block" id="data-import">📥 导入清单数据</button>
+          <button class="btn btn-danger btn-block" id="data-clear">🗑️ 清空所有物品</button>
         </div>
         <p style="font-size:11px;color:var(--text3);margin-top:12px;text-align:center;">
           💡 不同浏览器数据独立，切换设备请先导出再导入
@@ -464,11 +504,11 @@ const Wish = {
     document.body.appendChild(overlay);
     overlay.querySelector('#data-close').addEventListener('click', () => overlay.remove());
     overlay.querySelector('#data-export').addEventListener('click', () => {
-      const data = Store.exportAll();
+      const data = Store.exportWishData();
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = `daily-backup-${Store.today()}.json`;
+      a.download = `wishlist-backup-${Store.today()}.json`;
       a.click();
       this._toast('导出成功');
     });
@@ -483,12 +523,7 @@ const Wish = {
         reader.onload = (ev) => {
           try {
             const data = JSON.parse(ev.target.result);
-            if (Store.importAll(data)) {
-              const bg = Store.getBgImage();
-              if (bg) {
-                document.body.classList.add('has-bg');
-                document.body.style.backgroundImage = `url(${bg})`;
-              }
+            if (Store.importWishData(data)) {
               this._toast('导入成功');
               overlay.remove();
               this.render(document.getElementById('content'));
@@ -502,21 +537,19 @@ const Wish = {
       input.click();
     });
     overlay.querySelector('#data-clear').addEventListener('click', () => {
-      if (confirm('确定清空所有数据？此操作不可恢复！')) {
+      if (confirm('确定清空所有清单物品？此操作不可恢复！')) {
         if (confirm('是否先导出备份？点击"取消"将直接清空')) {
-          const data = Store.exportAll();
+          const data = Store.exportWishData();
           const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
           const a = document.createElement('a');
           a.href = URL.createObjectURL(blob);
-          a.download = `daily-backup-${Store.today()}.json`;
+          a.download = `wishlist-backup-${Store.today()}.json`;
           a.click();
         }
-        if (confirm('再次确认：所有物品、学习计划和倒计时将被删除！')) {
-          Store.clearAll();
-          overlay.remove();
-          this.render(document.getElementById('content'));
-          this._toast('已清空');
-        }
+        Store.clearWishData();
+        overlay.remove();
+        this.render(document.getElementById('content'));
+        this._toast('已清空');
       }
     });
   },

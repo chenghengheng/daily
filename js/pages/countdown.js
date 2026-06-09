@@ -19,6 +19,8 @@ const Countdown = {
     const eventsUpcoming = upcoming.filter(ev => ev.type !== 'reminder');
     const remindersUpcoming = upcoming.filter(ev => ev.type === 'reminder');
 
+    const MAX_VISIBLE_EXPIRED = 2;
+
     const renderCard = (ev) => {
       const target = new Date(ev.date + 'T00:00:00');
       const diff = Math.round((target - now) / (1000 * 60 * 60 * 24));
@@ -67,20 +69,28 @@ const Countdown = {
           <p>还没有倒计时事件</p>
         </div>
       ` : `
+        ${expired.length > 0 ? `
+          <div style="margin-bottom:12px;">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+              <span style="font-size:13px;font-weight:600;color:var(--text2);">已过期（${expired.length}）</span>
+            </div>
+            <div class="card-stagger">${expired.slice(0, MAX_VISIBLE_EXPIRED).map(renderCard).join('')}</div>
+            ${expired.length > MAX_VISIBLE_EXPIRED ? `
+              <details style="margin-top:4px;" id="cd-expired-details">
+                <summary style="cursor:pointer;font-size:12px;color:var(--text2);padding:6px 0;user-select:none;">
+                  还有 ${expired.length - MAX_VISIBLE_EXPIRED} 个
+                </summary>
+                <div style="margin-top:4px;">${expired.slice(MAX_VISIBLE_EXPIRED).map(renderCard).join('')}</div>
+              </details>
+            ` : ''}
+          </div>
+        ` : ''}
+
         ${eventsUpcoming.length > 0 ? groupHeader('★', '期待的事', eventsUpcoming.length, 'var(--sheikah)') : ''}
         ${eventsUpcoming.length > 0 ? `<div class="card-stagger">${eventsUpcoming.map(renderCard).join('')}</div>` : ''}
 
         ${remindersUpcoming.length > 0 ? groupHeader('⚠', '提醒', remindersUpcoming.length, 'var(--gold)') : ''}
         ${remindersUpcoming.length > 0 ? `<div class="card-stagger">${remindersUpcoming.map(renderCard).join('')}</div>` : ''}
-
-        ${expired.length > 0 ? `
-          <details style="margin-top:8px;" id="cd-expired-details">
-            <summary style="cursor:pointer;font-size:13px;color:var(--text2);padding:8px 0;user-select:none;">
-              已过期（${expired.length}）
-            </summary>
-            <div style="margin-top:4px;">${expired.map(renderCard).join('')}</div>
-          </details>
-        ` : ''}
       `}
     `;
   },

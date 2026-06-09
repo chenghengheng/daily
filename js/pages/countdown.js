@@ -16,9 +16,6 @@ const Countdown = {
     const upcoming = this.events.filter(ev => ev.date >= today);
     const expired = this.events.filter(ev => ev.date < today);
 
-    const eventsUpcoming = upcoming.filter(ev => ev.type !== 'reminder');
-    const remindersUpcoming = upcoming.filter(ev => ev.type === 'reminder');
-
     const MAX_VISIBLE_EXPIRED = 2;
 
     const renderCard = (ev) => {
@@ -51,13 +48,6 @@ const Countdown = {
       `;
     };
 
-    const groupHeader = (icon, label, count, color) => `
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;margin-top:4px;">
-        <span style="font-size:13px;font-weight:700;color:${color};">${icon} ${label}</span>
-        <span style="font-size:12px;color:var(--text2);">${count}</span>
-      </div>
-    `;
-
     return `
       <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;">
         <button class="btn btn-primary" id="cd-add-btn">+ 新事件</button>
@@ -72,25 +62,22 @@ const Countdown = {
         ${expired.length > 0 ? `
           <div style="margin-bottom:12px;">
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
-              <span style="font-size:13px;font-weight:600;color:var(--text2);">已过期（${expired.length}）</span>
+              <span style="font-size:13px;font-weight:600;color:var(--text2);">已经历（${expired.length}）</span>
             </div>
-            <div class="card-stagger">${expired.slice(0, MAX_VISIBLE_EXPIRED).map(renderCard).join('')}</div>
+            <div class="card-stagger">${expired.slice(-MAX_VISIBLE_EXPIRED).map(renderCard).join('')}</div>
             ${expired.length > MAX_VISIBLE_EXPIRED ? `
               <details style="margin-top:4px;" id="cd-expired-details">
                 <summary style="cursor:pointer;font-size:12px;color:var(--text2);padding:6px 0;user-select:none;">
                   还有 ${expired.length - MAX_VISIBLE_EXPIRED} 个
                 </summary>
-                <div style="margin-top:4px;">${expired.slice(MAX_VISIBLE_EXPIRED).map(renderCard).join('')}</div>
+                <div style="margin-top:4px;">${expired.slice(0, expired.length - MAX_VISIBLE_EXPIRED).map(renderCard).join('')}</div>
               </details>
             ` : ''}
           </div>
         ` : ''}
 
-        ${eventsUpcoming.length > 0 ? groupHeader('★', '期待的事', eventsUpcoming.length, 'var(--sheikah)') : ''}
-        ${eventsUpcoming.length > 0 ? `<div class="card-stagger">${eventsUpcoming.map(renderCard).join('')}</div>` : ''}
-
-        ${remindersUpcoming.length > 0 ? groupHeader('⚠', '提醒', remindersUpcoming.length, 'var(--gold)') : ''}
-        ${remindersUpcoming.length > 0 ? `<div class="card-stagger">${remindersUpcoming.map(renderCard).join('')}</div>` : ''}
+        ${upcoming.length > 0 ? `<div class="card-title" style="margin-bottom:8px;">即将到来（${upcoming.length}）</div>` : ''}
+        ${upcoming.length > 0 ? `<div class="card-stagger">${upcoming.map(renderCard).join('')}</div>` : ''}
       `}
     `;
   },

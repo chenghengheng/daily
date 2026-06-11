@@ -6,7 +6,7 @@ const Dashboard = {
 
     const activeWish = wishItems.filter(i => i.status === 'active');
     const wishReady = activeWish.filter(i => i.currentProgress >= i.price).length;
-    const wishSealed = activeWish.filter(i => i.currentProgress < i.price && i.sealed !== false).length;
+    const totalAccumulated = wishItems.filter(i => i.status !== 'abandoned').reduce((s, i) => s + i.currentProgress, 0);
 
     const plan = plans.length > 0 ? plans[0] : null;
     const currentPhase = plan ? plan.phases[plan.currentPhaseIndex || 0] : null;
@@ -33,10 +33,8 @@ const Dashboard = {
           <div class="stat-label">进行中 · 清单</div>
         </div>
         <div class="stat-card">
-          <div class="stat-number" style="color:${wishReady > 0 ? 'var(--gold)' : 'var(--sheikah)'}">
-            ${wishSealed}
-          </div>
-          <div class="stat-label">封印中</div>
+          <div class="stat-number" style="color:var(--gold);">¥${totalAccumulated.toFixed(1)}</div>
+          <div class="stat-label">已累积</div>
         </div>
         <div class="stat-card">
           <div class="stat-number">${plan ? currentPhase?.title || '-' : '-'}</div>

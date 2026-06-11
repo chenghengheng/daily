@@ -74,8 +74,14 @@ const Wish = {
       ` : ''}
 
       ${config.showDailyCost && active.length > 0 ? `
-        <div style="text-align:center;padding:8px;font-size:12px;color:var(--text3);margin-bottom:4px;">
+        <div style="text-align:center;padding:8px 8px 0;font-size:12px;color:var(--text3);margin-bottom:2px;">
           每日累计 <span style="color:var(--sheikah);font-weight:600;">¥${dailyTotal.toFixed(1)}/天</span>
+        </div>
+      ` : ''}
+
+      ${active.length > 0 || done.filter(i => i.status === 'purchased').length > 0 ? `
+        <div style="text-align:center;padding:0 8px 8px;font-size:12px;color:var(--text3);margin-bottom:4px;">
+          已累积 <span style="color:var(--gold);font-weight:600;">¥${this._calcAccumulated().toFixed(1)}</span>
         </div>
       ` : ''}
 
@@ -306,6 +312,10 @@ const Wish = {
     item.sealed = item.sealed === false;
     Store.saveWishItems(this.items);
     this.render(document.getElementById('content'));
+  },
+
+  _calcAccumulated() {
+    return this.items.filter(i => i.status !== 'abandoned').reduce((s, i) => s + i.currentProgress, 0);
   },
 
   _deleteItem(id) {

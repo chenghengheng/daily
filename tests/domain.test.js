@@ -1,0 +1,37 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const DateUtils = require('../js/date-utils.js');
+const Domain = require('../js/domain.js');
+
+function wish(overrides = {}) {
+  return { id: 'w1', name: '测试', price: 100, dailyProgress: 30, currentProgress: 0, status: 'active', progressLog: [], createdAt: '2026-07-23T00:30:00+08:00', updatedAt: '2026-07-23T00:30:00+08:00', lastProgressOn: '2026-07-23', ...overrides };
+}
+
+test('UTC+8 凌晨仍使用本地自然日', () => assert.equal(DateUtils.localDate(new Date('2026-07-22T16:30:00Z')), '2026-07-23'));
+test('新建后立即渲染和同日重复渲染不累计', () => {
+  const first = Domain.applyWishProgress(wish(), '2026-07-23');
+  const second = Domain.applyWishProgress(first.item, '2026-07-23');
+  assert.equal(first.item.currentProgress, 0); assert.equal(second.item.currentProgress, 0);
+});
+test('跨多日本地自然日补齐进度', () => {
+  const result = Domain.applyWishProgress(wish(), '2026-07-25');
+  assert.equal(result.item.currentProgress, 60); assert.deepEqual(result.item.progressLog.map(x => x.date), ['2026-07-24', '2026-07-25']);
+});
+test('封顶日只记录实际增加金额', () => {
+  const result = Domain.applyWishProgress(wish({ currentProgress: 80, lastProgressOn: '2026-07-22' }), '2026-07-23');
+  assert.equal(result.item.currentProgress, 100); assert.equal(result.item.progressLog[0].amount, 20);
+  assert.equal(result.item.progressLog.reduce((sum, x) => sum + x.amount, 0), 20);
+});
+test('旧 clickLog 被兼容迁移', () => assert.equal(Domain.normalizeWish(wish({ progressLog: undefined, clickLog: [{ date: '2026-07-20', amount: 1 }] })).progressLog.length, 1));
+test('导入校验接受空数组、false 和 0', () => assert.equal(Domain.validateImport({ version: 3, wish: [], config: { showDailyCost: false, value: 0 } }).ok, true));
+test('导入校验拒绝错误结构', () => assert.match(Domain.validateImport({ version: 3, wish: {} }).error, /wish/));
+test('候选事项规则覆盖电影、书籍和整理任务', () => {
+  assert.equal(Domain.inferCandidate({ title: '看一部电影' }).sessionMode, 'continuous');
+  assert.equal(Domain.inferCandidate({ title: '读一本书' }).minSessionMinutes, 20);
+  assert.equal(Domain.inferCandidate({ title: '整理房间' }).sessionMode, 'flexible');
+});
+test('旧随手记 tag 无损迁移为候选类型', () => assert.equal(Domain.migrateNote({ id: 'n1', title: '待看', tag: 'media', status: 'active' }).type, 'movie'));
+test('推荐遵守最小时长和 continuous 边界', () => {
+  const items = [Domain.inferCandidate({ id: 'movie', title: '电影', type: 'movie', estimatedMinutes: 120 }), Domain.inferCandidate({ id: 'task', title: '整理桌面' })];
+  assert.equal(Domain.recommend(items, 20, [], () => 0).id, 'task');
+});

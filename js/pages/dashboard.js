@@ -3,6 +3,7 @@ const Dashboard = {
     const wishItems = Store.getWishItems();
     const plans = Store.getStudyPlans();
     const events = Store.getCountdownEvents();
+    const studyEnabled = Store.getConfig().features.studyEnabled;
 
     const activeWish = wishItems.filter(i => i.status === 'active');
     const wishReady = activeWish.filter(i => i.currentProgress >= i.price).length;
@@ -27,6 +28,13 @@ const Dashboard = {
       .slice(0, 3);
 
     container.innerHTML = `
+      <div class="card">
+        <div class="card-title">我现在有空</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;" id="free-time-options">
+          ${[10,20,45,60,120].map(minutes => `<button class="btn btn-sm btn-outline" data-minutes="${minutes}">${minutes < 60 ? `${minutes}分钟` : `${minutes / 60}小时`}</button>`).join('')}
+          <button class="btn btn-sm btn-outline" data-minutes="custom">自定义</button>
+        </div>
+      </div>
       <div class="stat-grid stat-enter" style="margin-bottom:16px;">
         <div class="stat-card">
           <div class="stat-number">${activeWish.length}</div>
@@ -34,7 +42,7 @@ const Dashboard = {
         </div>
         <div class="stat-card">
           <div class="stat-number" style="color:var(--sheikah);">¥${totalAccumulated.toFixed(1)}</div>
-          <div class="stat-label">已累积</div>
+          <div class="stat-label">总等待进度 · 非余额</div>
         </div>
         <div class="stat-card">
           <div class="stat-number">${plan ? currentPhase?.title || '-' : '-'}</div>
@@ -75,10 +83,10 @@ const Dashboard = {
           <svg width="22" height="22" viewBox="0 0 42 51" fill="currentColor" style="display:block;margin:0 auto;color:var(--sheikah);"><path d="M39.587 23.468H38.208V17.172C38.208 12.421 36.254 8.128 33.152 5.037C29.992 1.946 25.683 0 20.971 0C11.434 0 3.735 7.67 3.735 17.172V23.468H2.356C1.092 23.468 0 24.498 0 25.815V48.653C0 49.913 1.034 51 2.356 51H39.644C40.966 51 42 49.97 42 48.653V25.815C41.943 24.498 40.851 23.468 39.587 23.468ZM20.856 45.791C16.088 45.791 12.238 41.956 12.238 37.205C12.238 32.455 16.088 28.62 20.856 28.62C25.625 28.62 29.475 32.455 29.475 37.205C29.475 41.956 25.625 45.791 20.856 45.791ZM29.59 23.468H12.353V16.027C12.353 11.276 16.203 7.441 20.971 7.441C25.74 7.441 29.59 11.276 29.59 16.027V23.468ZM24.304 34.916C24.304 36.175 23.614 37.32 22.58 37.892V42.929H19.133V37.892C18.099 37.32 17.409 36.175 17.409 34.916C17.409 33.027 18.96 31.482 20.856 31.482C22.752 31.482 24.304 33.027 24.304 34.916Z"/></svg>
           <div style="font-size:13px;margin-top:8px;color:var(--text);">清单</div>
         </a>
-        <a href="#/study" class="card card-link" style="text-align:center;padding:20px;">
+        ${studyEnabled ? `<a href="#/study" class="card card-link" style="text-align:center;padding:20px;">
           <svg width="22" height="22" viewBox="0 0 77 45.2" fill="currentColor" style="display:block;margin:0 auto;color:var(--sheikah);"><path d="M38.512 0L32.5925 8.943H44.3963L38.512 0"/><path d="M26.7084 17.8509L32.5926 8.943L38.5122 17.8509H26.7084Z"/><path d="M38.5122 17.8509H50.3513L44.3965 8.943L38.5122 17.8509Z"/><path d="M0 2.765L2.89 11.445L23.02 14.47V16.603L4.933 18.587L8.521 25.58L23.52 19.976L24.467 21.811L13.006 30.44L17.939 33.912L26.31 24.638L27.606 25.878L23.52 35.549L28.453 36.541L30.197 27.713C31.749 27.923 34.028 27.713 33.967 25.58C33.937 24.541 33.45 23.267 31.648 22.713C23.875 20.326 25.463 10.651 27.905 6.634C24.986 8.943 24.779 10.109 23.968 11.197C22.635 10.843 0 2.765 0 2.765Z"/><path d="M77 2.765L74.11 11.445L53.978 14.47V16.603L72.067 18.587L68.479 25.58L53.48 19.976L52.533 21.811L63.994 30.44L59.061 33.912L50.69 24.638L49.394 25.878L53.48 35.549L48.547 36.541L46.803 27.713C45.251 27.923 42.972 27.713 43.033 25.58C43.063 24.541 43.55 23.267 45.352 22.713C53.125 20.326 51.537 10.651 49.095 6.634C52.014 8.943 52.221 10.109 53.032 11.197C54.365 10.843 77 2.765 77 2.765Z"/><path d="M38.512 20.604C38.459 21.656 37.049 24.251 36.679 24.638C36.382 24.948 35.974 25.58 35.146 27.713C34.318 29.845 34.66 29.946 32.944 31.195C40.002 34.425 35.974 37.702 35.974 38.456C36.858 40.68 38.512 45.171 38.512 45.171C38.512 45.171 40.164 40.68 41.047 38.456C41.047 37.702 37.02 34.425 44.078 31.195C42.362 29.946 42.704 29.845 41.876 27.713C41.048 25.58 40.64 24.948 40.343 24.638C39.973 24.251 38.565 21.656 38.512 20.604Z"/></svg>
           <div style="font-size:13px;margin-top:8px;color:var(--text);">学习</div>
-        </a>
+        </a>` : ''}
         <a href="#/countdown" class="card card-link" style="text-align:center;padding:20px;">
           <svg width="22" height="22" viewBox="0 0 51 48" fill="currentColor" style="display:block;margin:0 auto;color:var(--sheikah);"><path fill-rule="evenodd" clip-rule="evenodd" d="M0 11V4V0H4H11H15V3H36V0H40H47H51V4V11V15V22V26V33V37V44V48H47H40H36V45H15V48H11H4H0V44V37V33V26V22V15V11ZM40 44H47V37H40V44ZM11 37V44H4V37H11ZM36 37V33V26H15V33V37V41H36V37ZM40 33H47V26H40V33ZM4 33H11V26H4V33ZM4 22H11V15H4V22ZM36 22H15V15V11V7H36V11V15V22ZM40 22H47V15H40V22ZM47 4V11H40V4H47ZM4 11H11V4H4V11Z"/></svg>
           <div style="font-size:13px;margin-top:8px;color:var(--text);">倒计时</div>
@@ -91,10 +99,49 @@ const Dashboard = {
     `;
 
     container.querySelector('#dashboard-settings-btn')?.addEventListener('click', () => this._showSettingsModal());
+    container.querySelectorAll('[data-minutes]').forEach(button => button.addEventListener('click', () => {
+      let minutes = button.dataset.minutes === 'custom' ? Number(prompt('现在有多少分钟？', '30')) : Number(button.dataset.minutes);
+      if (!Number.isFinite(minutes) || minutes <= 0) return;
+      this._recommend(minutes);
+    }));
+  },
+
+  _recommend(minutes) {
+    const items = Store.getCandidateItems();
+    const events = Store.getRecommendationEvents();
+    const item = DailyDomain.recommend(items, minutes, events);
+    if (!item) { Toast.show('这个时长暂时没有合适事项，可以先记下一件想做的事'); return; }
+    Store.addRecommendationEvent('suggested', item.id, { availableMinutes: minutes });
+    const modal = Modal.open({ title: '现在可以做', body: `<h2>${this._esc(item.title)}</h2><p style="color:var(--text2);">${item.sessionMode === 'continuous' ? '适合一次完成' : `可以从 ${item.minSessionMinutes} 分钟开始`}</p><div class="modal-actions"><button class="btn btn-outline" id="recommend-snooze">今天不想做</button><button class="btn btn-outline" id="recommend-switch">换一个</button><button class="btn btn-primary" id="recommend-start">开始</button></div>` });
+    modal.overlay.querySelector('#recommend-switch').onclick = () => { Store.addRecommendationEvent('switched', item.id, { availableMinutes: minutes }); modal.close(); setTimeout(() => this._recommend(minutes), 180); };
+    modal.overlay.querySelector('#recommend-snooze').onclick = () => { Store.addRecommendationEvent('snoozed', item.id, { until: Store.today() }); modal.close(); };
+    modal.overlay.querySelector('#recommend-start').onclick = () => { Store.addRecommendationEvent('started', item.id, { plannedMinutes: minutes }); modal.close(); this._startTimer(item, minutes); };
+  },
+
+  _startTimer(item, minutes) {
+    const startedAt = Date.now();
+    Store.saveTimer({ candidateId: item.id, plannedMinutes: minutes, startedAt: new Date(startedAt).toISOString() });
+    let interval;
+    const modal = Modal.open({ title: '计时中', body: `<h2>${this._esc(item.title)}</h2><div class="stat-number" id="session-clock">00:00</div><div class="modal-actions"><button class="btn btn-outline" id="session-stop">结束本次</button></div>`, onClose: () => { if (interval) clearInterval(interval); } });
+    const clock = modal.overlay.querySelector('#session-clock');
+    interval = setInterval(() => { const seconds = Math.floor((Date.now() - startedAt) / 1000); clock.textContent = `${String(Math.floor(seconds / 60)).padStart(2,'0')}:${String(seconds % 60).padStart(2,'0')}`; }, 1000);
+    modal.overlay.querySelector('#session-stop').onclick = () => { clearInterval(interval); Store.saveTimer(null); const actual = Math.max(1, Math.round((Date.now() - startedAt) / 60000)); if (actual < minutes) Store.addRecommendationEvent('stopped_early', item.id, { plannedMinutes: minutes, actualMinutes: actual }); modal.close(); setTimeout(() => this._finishSession(item, minutes, actual), 180); };
+  },
+
+  _finishSession(item, plannedMinutes, actualMinutes) {
+    const modal = Modal.open({ title: '这次怎么样？', body: `<h2>这次怎么样？</h2><div style="display:grid;gap:8px;"><button class="btn btn-primary" data-result="completed">完成了</button><button class="btn btn-outline" data-result="continue">还要继续</button><button class="btn btn-outline" data-result="mismatch">不适合这个时长</button></div>` });
+    modal.overlay.querySelectorAll('[data-result]').forEach(button => button.onclick = () => { const result = button.dataset.result; Store.addRecommendationEvent(result === 'completed' ? 'completed' : result === 'mismatch' ? 'time_mismatch' : 'started', item.id, { plannedMinutes, actualMinutes }); if (result === 'completed') { const items = Store.getCandidateItems(); const current = items.find(value => value.id === item.id); if (current) { current.status = 'done'; current.updatedAt = new Date().toISOString(); Store.saveCandidateItems(items); } } modal.close(); if (result === 'mismatch') setTimeout(() => this._calibrateDuration(item), 180); });
+  },
+
+  _calibrateDuration(item) {
+    const modal = Modal.open({ title: '更适合多长时间？', body: '<h2>更适合多长时间？</h2><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;"><button class="btn btn-outline" data-min="15">更短</button><button class="btn btn-outline" data-min="60">约1小时</button><button class="btn btn-outline" data-min="120">约2小时</button><button class="btn btn-outline" data-mode="continuous">需要一次完成</button></div>' });
+    const save = button => { const items = Store.getCandidateItems(); const current = items.find(value => value.id === item.id); if (current) { if (button.dataset.min) { current.minSessionMinutes = Number(button.dataset.min); current.estimatedMinutes = Number(button.dataset.min); } if (button.dataset.mode) current.sessionMode = button.dataset.mode; current.inferenceSource = 'user'; current.updatedAt = new Date().toISOString(); Store.saveCandidateItems(items); } modal.close(); Toast.show('已更新事项时长'); };
+    modal.overlay.querySelectorAll('[data-min],[data-mode]').forEach(button => button.onclick = () => save(button));
   },
 
   _showSettingsModal() {
     const currentBg = Store.getBgImage();
+    const profile = Store.getRecommendationProfile();
     let previewUrl = currentBg;
 
     const renderPreview = () => {
@@ -184,6 +231,11 @@ const Dashboard = {
         <div style="border-top:1px solid var(--border);padding-top:12px;margin-top:12px;">
           <button class="btn btn-outline btn-block" id="settings-export">📤 导出数据</button>
           <button class="btn btn-outline btn-block" id="settings-import" style="margin-top:8px;">📥 导入数据</button>
+          <button class="btn btn-outline btn-block" id="settings-restore" style="margin-top:8px;">↩ 恢复最近快照</button>
+          <button class="btn btn-outline btn-block" id="settings-clear-history" style="margin-top:8px;">清除推荐历史（保留事项）</button>
+          <button class="btn btn-outline btn-block" id="settings-reset-profile" style="margin-top:8px;">恢复默认推荐偏好</button>
+          <button class="btn btn-danger btn-block" id="settings-clear-all" style="margin-top:8px;">清除全部本地数据（包括背景图）</button>
+          <p style="font-size:11px;color:var(--text2);margin-top:8px;">偏好摘要：已完成 ${Math.round(profile.completed || 0)} 次，时长校准 ${Math.round(profile.timeMismatch || 0)} 次。偏好会缓慢衰减，单次操作不会形成永久结论。</p>
         </div>
         <p style="font-size:11px;color:var(--text3);margin-top:12px;text-align:center;">
           💡 iOS Safari 与桌面 PWA 数据独立，切换设备请先导出再导入
@@ -243,7 +295,8 @@ const Dashboard = {
         reader.onload = (ev) => {
           try {
             const data = JSON.parse(ev.target.result);
-            if (Store.importAll(data)) {
+            const result = Store.importAll(data);
+            if (result.ok) {
               const bg = Store.getBgImage();
               if (bg) {
                 document.body.classList.add('has-bg');
@@ -256,7 +309,7 @@ const Dashboard = {
               Dashboard.render(document.getElementById('content'));
               Toast.show('导入成功');
             } else {
-              Toast.show('文件格式不正确');
+              Toast.show(result.error || '文件格式不正确');
             }
           } catch {
             Toast.show('文件解析失败');
@@ -266,6 +319,19 @@ const Dashboard = {
       });
       input.click();
     });
+    modal.modalEl.querySelector('#settings-clear-history').onclick = () => { Store.clearRecommendationHistory(); Toast.show('推荐历史已清除，候选事项仍保留'); };
+    modal.modalEl.querySelector('#settings-reset-profile').onclick = () => { Store.resetRecommendationProfile(); Toast.show('推荐偏好已恢复默认'); };
+    modal.modalEl.querySelector('#settings-restore').onclick = () => {
+      const snapshots = Store.getSnapshots().slice().reverse();
+      if (!snapshots.length) { Toast.show('暂无可恢复快照'); return; }
+      const latest = snapshots[0];
+      if (confirm(`恢复 ${latest.savedAt.slice(0, 19).replace('T', ' ')} 的 ${latest.key} 数据？`)) { Store.restoreSnapshot(latest.id); Toast.show('已恢复最近快照'); modal.close(); App.route(); }
+    };
+    modal.modalEl.querySelector('#settings-clear-all').onclick = () => {
+      if (!confirm('这会清除愿望、消费、候选事项、提醒、学习数据、推荐记录和背景图。确定继续？')) return;
+      if (!confirm('建议先导出备份。再次确认清除全部本地数据？')) return;
+      Store.clearAll(); document.body.classList.remove('has-bg', 'bg-light'); document.body.style.backgroundImage = ''; modal.close(); App.route(); Toast.show('全部本地数据和背景图已清除');
+    };
   },
 
   _toast(msg) { Toast.show(msg); },

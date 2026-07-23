@@ -34,7 +34,7 @@ const Countdown = {
               </div>
               <div style="font-size:16px;font-weight:600;">${this._esc(ev.title)}</div>
               ${ev.note ? `<div style="font-size:12px;color:var(--text2);margin-top:2px;">${this._esc(ev.note)}</div>` : ''}
-              <div style="font-size:12px;color:var(--text2);margin-top:2px;">${ev.date}</div>
+              <div style="font-size:12px;color:var(--text2);margin-top:2px;">${ev.date}${ev.time ? ` ${ev.time}` : ''}</div>
             </div>
             <div style="text-align:right;">
               <div class="countdown-number" style="${diff <= 7 && diff >= 0 ? 'color:var(--gold);text-shadow:0 0 12px var(--gold-glow);' : ''}">
@@ -110,6 +110,9 @@ const Countdown = {
           <label>日期</label>
           <input id="cd-date" type="date">
         </div>
+        <div class="form-group" id="cd-time-group" style="display:none;">
+          <label>具体时间（可选）</label><input id="cd-time" type="time">
+        </div>
         <div class="form-group">
           <label>类型</label>
           <div style="display:flex;gap:8px;" id="cd-type-picker">
@@ -118,10 +121,11 @@ const Countdown = {
           </div>
         </div>
         <div class="form-group" id="cd-keepafter-group" style="display:none;">
-          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
-            <input type="checkbox" id="cd-keepafter" style="width:auto;">
-            过去后保留此事件
-          </label>
+          <label>提醒到期后</label>
+          <div class="choice-group" id="cd-retention-picker">
+            <button type="button" class="btn btn-sm btn-outline choice-button" aria-pressed="true" data-keep="false">自动删除</button>
+            <button type="button" class="btn btn-sm btn-outline choice-button" aria-pressed="false" data-keep="true">保留在“已经历”</button>
+          </div>
         </div>
         <div class="form-group">
           <label>备注（可选）</label>
@@ -136,6 +140,7 @@ const Countdown = {
     document.body.appendChild(overlay);
 
     let selectedType = 'event';
+    let keepAfter = false;
 
     overlay.querySelectorAll('.cd-type-opt').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -148,20 +153,26 @@ const Countdown = {
         selectedType = btn.dataset.type;
         overlay.querySelector('#cd-keepafter-group').style.display =
           selectedType === 'reminder' ? 'block' : 'none';
+        overlay.querySelector('#cd-time-group').style.display = selectedType === 'reminder' ? 'block' : 'none';
       });
     });
+
+    overlay.querySelectorAll('.choice-button').forEach(btn => btn.addEventListener('click', () => {
+      keepAfter = btn.dataset.keep === 'true';
+      overlay.querySelectorAll('.choice-button').forEach(item => item.setAttribute('aria-pressed', String(item === btn)));
+    }));
 
     overlay.querySelector('#cd-cancel').addEventListener('click', () => overlay.remove());
     overlay.querySelector('#cd-confirm').addEventListener('click', () => {
       const title = overlay.querySelector('#cd-title').value.trim();
       const date = overlay.querySelector('#cd-date').value;
       const note = overlay.querySelector('#cd-note').value.trim();
-      const keepAfter = overlay.querySelector('#cd-keepafter').checked;
+      const time = selectedType === 'reminder' ? overlay.querySelector('#cd-time').value : '';
       if (!title) { this._toast('请输入标题'); return; }
       if (!date) { this._toast('请选择日期'); return; }
       this.events.push({
         id: Store.genId(),
-        title, date, note,
+        title, date, time, note,
         type: selectedType,
         keepAfter: selectedType === 'reminder' ? keepAfter : true,
       });

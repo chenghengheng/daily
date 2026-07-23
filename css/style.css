@@ -252,6 +252,10 @@ input, textarea, select {
   font-family: inherit; transition: border-color var(--duration) var(--easing), box-shadow var(--duration) var(--easing);
   -webkit-appearance: none; appearance: none;
 }
+input[type="checkbox"], input[type="radio"] { width: auto; -webkit-appearance: auto; appearance: auto; accent-color: var(--sheikah); }
+[hidden] { display: none !important; }
+.choice-group { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.choice-button[aria-pressed="true"] { border-color: var(--sheikah); background: var(--sheikah-soft); color: var(--sheikah); }
 input:focus, textarea:focus, select:focus {
   border-color: var(--sheikah);
   box-shadow: 0 0 0 3px var(--sheikah-soft), 0 0 16px var(--sheikah-glow);

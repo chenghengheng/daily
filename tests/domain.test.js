@@ -13,6 +13,17 @@ test('新建后立即渲染和同日重复渲染不累计', () => {
   const second = Domain.applyWishProgress(first.item, '2026-07-23');
   assert.equal(first.item.currentProgress, 0); assert.equal(second.item.currentProgress, 0);
 });
+test('新建愿望当日立即累计一次并写入本地日期日志', () => {
+  const item = Domain.createWish({ id: 'new', name: '耳机', price: 100, dailyProgress: 8, today: '2026-07-23', now: '2026-07-23T10:00:00+08:00' });
+  assert.equal(item.currentProgress, 8); assert.deepEqual(item.progressLog, [{ date: '2026-07-23', amount: 8, reason: '新增物品，开始等待进度' }]);
+  assert.equal(Domain.applyWishProgress(item, '2026-07-23').item.currentProgress, 8);
+});
+test('年度等待进度包含每日进度并排除已放弃或已删除物品', () => {
+  const active = wish({ id: 'a', currentProgress: 10, progressLog: [{ date: '2026-01-01', amount: 4 }, { date: '2026-01-02', amount: 6 }] });
+  const abandoned = wish({ id: 'b', status: 'abandoned', currentProgress: 30, progressLog: [{ date: '2026-01-01', amount: 30 }] });
+  assert.equal(Domain.yearlyWishProgress([active, abandoned], '2026'), 10);
+  assert.equal(Domain.yearlyWishProgress([], '2026'), 0);
+});
 test('跨多日本地自然日补齐进度', () => {
   const result = Domain.applyWishProgress(wish(), '2026-07-25');
   assert.equal(result.item.currentProgress, 60); assert.deepEqual(result.item.progressLog.map(x => x.date), ['2026-07-24', '2026-07-25']);

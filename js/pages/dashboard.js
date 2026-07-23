@@ -4,13 +4,10 @@ const Dashboard = {
     const events = Store.getCountdownEvents();
     const studyEnabled = false;
     const year = Store.today().slice(0, 4);
-    const yearlyExpenses = Store.getExpenses().filter(item => !item.deletedAt && item.occurredOn.startsWith(year));
-    const yearlyTotal = yearlyExpenses.reduce((sum, item) => sum + item.amount, 0);
-    const plannedTotal = yearlyExpenses.filter(item => item.source === 'wish').reduce((sum, item) => sum + item.amount, 0);
-    const quickTotal = yearlyTotal - plannedTotal;
 
     const activeWish = wishItems.filter(i => i.status === 'active');
     const wishReady = activeWish.filter(i => i.currentProgress >= i.price).length;
+    const yearlyProgress = DailyDomain.yearlyWishProgress(wishItems, year);
 
     const now = new Date();
     now.setHours(0, 0, 0, 0);
@@ -34,20 +31,12 @@ const Dashboard = {
       </div>
       <div class="stat-grid stat-enter" style="margin-bottom:16px;">
         <div class="stat-card">
-          <div class="stat-number">¥${yearlyTotal.toFixed(0)}</div>
-          <div class="stat-label">${year} 年随手花</div>
+          <div class="stat-number">${activeWish.length}</div>
+          <div class="stat-label">进行中 · 清单</div>
         </div>
         <div class="stat-card">
-          <div class="stat-number">${yearlyExpenses.length}</div>
-          <div class="stat-label">年度记录</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-number">¥${quickTotal.toFixed(0)}</div>
-          <div class="stat-label">即时型</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-number">¥${plannedTotal.toFixed(0)}</div>
-          <div class="stat-label">计划型</div>
+          <div class="stat-number">¥${yearlyProgress.toFixed(1)}</div>
+          <div class="stat-label">${year} 年等待进度</div>
         </div>
       </div>
 
@@ -110,7 +99,8 @@ const Dashboard = {
     const item = DailyDomain.recommend(items, minutes, events);
     if (!item) { Toast.show('这个时长暂时没有合适事项，可以先记下一件想做的事'); return; }
     Store.addRecommendationEvent('suggested', item.id, { availableMinutes: minutes });
-    const modal = Modal.open({ title: '现在可以做', body: `<h2>${this._esc(item.title)}</h2><p style="color:var(--text2);">${item.sessionMode === 'continuous' ? '适合一次完成' : `可以从 ${item.minSessionMinutes} 分钟开始`}</p><div class="modal-actions"><button class="btn btn-outline" id="recommend-snooze">今天不想做</button><button class="btn btn-outline" id="recommend-switch">换一个</button><button class="btn btn-primary" id="recommend-start">开始</button></div>` });
+    const typeLabels = { task: '事', book: '书', movie: '影', series: '剧', idea: '想法' };
+    const modal = Modal.open({ title: '现在可以做', body: `<span class="badge badge-active">${typeLabels[item.type] || '事项'}</span><h2 style="margin-top:8px;">${this._esc(item.title)}</h2><p style="color:var(--text2);">${item.sessionMode === 'continuous' ? '适合一次完成' : `可以从 ${item.minSessionMinutes} 分钟开始`}</p><div class="modal-actions"><button class="btn btn-outline" id="recommend-snooze">今天不想做</button><button class="btn btn-outline" id="recommend-switch">换一个</button><button class="btn btn-primary" id="recommend-start">开始</button></div>` });
     modal.overlay.querySelector('#recommend-switch').onclick = () => { Store.addRecommendationEvent('switched', item.id, { availableMinutes: minutes }); modal.close(); setTimeout(() => this._recommend(minutes), 180); };
     modal.overlay.querySelector('#recommend-snooze').onclick = () => { Store.addRecommendationEvent('snoozed', item.id, { until: Store.today() }); modal.close(); };
     modal.overlay.querySelector('#recommend-start').onclick = () => { Store.addRecommendationEvent('started', item.id, { plannedMinutes: minutes }); modal.close(); this._startTimer(item, minutes); };
@@ -149,27 +139,6 @@ const Dashboard = {
       return '';
     };
 
-    // HEIC detection: read first 32 bytes to check ftyp brand
-    const detectHeic = (file) => new Promise(resolve => {
-      const r = new FileReader();
-      r.onload = e => {
-        const dv = new DataView(e.target.result);
-        if (dv.byteLength < 12) return resolve(false);
-        const ftyp = String.fromCharCode(dv.getUint8(4), dv.getUint8(5), dv.getUint8(6), dv.getUint8(7));
-        if (ftyp !== 'ftyp') return resolve(false);
-        const heicBrands = ['heic','heix','hevc','hevx','mif1','msf1'];
-        const end = Math.min(dv.byteLength, 32);
-        let off = 8;
-        while (off + 4 <= end) {
-          const brand = String.fromCharCode(dv.getUint8(off), dv.getUint8(off+1), dv.getUint8(off+2), dv.getUint8(off+3));
-          if (heicBrands.includes(brand)) return resolve(true);
-          off += 4;
-        }
-        resolve(false);
-      };
-      r.readAsArrayBuffer(file.slice(0, 32));
-    });
-
     // Lightness detection using 50×50 canvas
     const detectLightness = (dataUrl, cb) => {
       const img = new Image();
@@ -186,34 +155,6 @@ const Dashboard = {
       img.src = dataUrl;
     };
 
-    const applyBg = (dataUrl) => {
-      previewUrl = dataUrl;
-      Store.saveBgImage(dataUrl);
-      document.body.classList.add('has-bg');
-      document.body.style.backgroundImage = `url(${dataUrl})`;
-      detectLightness(dataUrl, light => document.body.classList.toggle('bg-light', light));
-      const preview = modal.modalEl.querySelector('#settings-bg-preview');
-      if (preview) preview.innerHTML = renderPreview();
-      const actions = modal.modalEl.querySelector('.form-group > div:last-child');
-      if (actions && !actions.querySelector('#settings-bg-remove')) {
-        const rmBtn = document.createElement('button');
-        rmBtn.className = 'btn btn-sm btn-danger';
-        rmBtn.id = 'settings-bg-remove';
-        rmBtn.textContent = '移除';
-        rmBtn.addEventListener('click', () => {
-          Store.clearBgImage();
-          document.body.classList.remove('has-bg', 'bg-light');
-          document.body.style.backgroundImage = '';
-          previewUrl = null;
-          if (preview) preview.innerHTML = renderPreview();
-          rmBtn.remove();
-          Toast.show('已移除背景');
-        });
-        actions.appendChild(rmBtn);
-      }
-      Toast.show('背景已更新');
-    };
-
     const modal = Modal.open({
       title: '个性化',
       body: `
@@ -221,10 +162,9 @@ const Dashboard = {
           <label>背景图片</label>
           <div id="settings-bg-preview">${renderPreview()}</div>
           <div style="display:flex;gap:8px;">
-            <button class="btn btn-sm btn-outline" id="settings-bg-upload">📁 上传图片</button>
-            ${currentBg ? '<button class="btn btn-sm btn-danger" id="settings-bg-remove">移除</button>' : ''}
+            ${currentBg ? '<button class="btn btn-sm btn-danger" id="settings-bg-remove">移除现有背景</button>' : '<span style="font-size:12px;color:var(--text3);">当前没有自定义背景</span>'}
           </div>
-          <p style="font-size:11px;color:var(--text3);margin-top:6px;">建议使用深色图片，效果更佳 · 图片仅存储在本地</p>
+          <p style="font-size:11px;color:var(--text3);margin-top:6px;">背景上传功能已移除；已有背景仍可在此删除。</p>
         </div>
         <div class="form-group" style="border-top:1px solid var(--border);padding-top:12px;">
           <label>DeepSeek API Key（仅本次浏览器会话）</label>
@@ -248,23 +188,6 @@ const Dashboard = {
       onClose() {},
     });
 
-    modal.modalEl.querySelector('#settings-bg-upload')?.addEventListener('click', async () => {
-      const input = document.createElement('input');
-      input.type = 'file';
-      input.accept = 'image/*';
-      input.addEventListener('change', async (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        if (await detectHeic(file)) {
-          Toast.show('不支持 HEIC/HEIF 格式，请使用 JPEG 或 PNG');
-          return;
-        }
-        const reader = new FileReader();
-        reader.onload = (ev) => applyBg(ev.target.result);
-        reader.readAsDataURL(file);
-      });
-      input.click();
-    });
     modal.modalEl.querySelector('#settings-deepseek-save').onclick = () => { const key = modal.modalEl.querySelector('#settings-deepseek-key').value.trim(); if (!key) { Toast.show('请输入 API Key'); return; } sessionStorage.setItem('daily_deepseek_key', key); modal.modalEl.querySelector('#settings-deepseek-key').value = ''; Toast.show('Key 已保存到本次会话'); };
     modal.modalEl.querySelector('#settings-deepseek-clear').onclick = () => { sessionStorage.removeItem('daily_deepseek_key'); modal.modalEl.querySelector('#settings-deepseek-key').value = ''; Toast.show('Key 已从本次会话清除'); };
 

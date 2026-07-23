@@ -45,6 +45,23 @@
     return { item, changed: true };
   }
 
+  function createWish(input) {
+    const price = Math.max(0, finite(input.price));
+    const dailyProgress = Math.max(0, finite(input.dailyProgress, 1));
+    const amount = Math.min(price, dailyProgress);
+    const now = input.now || new Date().toISOString();
+    const today = input.today || DateUtils.localDate();
+    return normalizeWish({ id: input.id || '', name: input.name || '', price, plannedPrice: price, dailyProgress, currentProgress: amount, status: 'active', sealed: true, progressLog: amount > 0 ? [{ date: today, amount, reason: '新增物品，开始等待进度' }] : [], actionLog: [], createdAt: now, updatedAt: now, lastProgressOn: today });
+  }
+
+  function yearlyWishProgress(items, year) {
+    return items.filter(item => item.status !== 'abandoned').reduce((sum, item) => {
+      const logs = (item.progressLog || item.clickLog || []).filter(log => String(log.date || '').startsWith(String(year)));
+      if (logs.length) return sum + logs.reduce((total, log) => total + finite(log.amount), 0);
+      return sum + (String(item.createdAt || '').startsWith(String(year)) ? finite(item.currentProgress) : 0);
+    }, 0);
+  }
+
   function inferCandidate(input) {
     const text = `${input.title || ''} ${input.note || ''}`.toLowerCase();
     const hasManualType = TYPES.includes(input.type);
@@ -141,5 +158,5 @@
     }
   }
 
-  return { TYPES, CATEGORIES, normalizeWish, applyWishProgress, inferCandidate, migrateNote, normalizeExpense, validateImport, recommend, InferenceProvider, RuleInferenceProvider, DeepSeekInferenceProvider };
+  return { TYPES, CATEGORIES, normalizeWish, applyWishProgress, createWish, yearlyWishProgress, inferCandidate, migrateNote, normalizeExpense, validateImport, recommend, InferenceProvider, RuleInferenceProvider, DeepSeekInferenceProvider };
 });

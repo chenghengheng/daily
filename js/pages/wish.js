@@ -282,6 +282,8 @@ const Wish = {
       item.progressAtPurchase = item.currentProgress;
       item.purchaseTiming = item.currentProgress >= item.price ? 'ready' : 'early';
       item.purchaseReason = overlay.querySelector('#purchase-reason').value.trim();
+      if (!Array.isArray(item.actionLog)) item.actionLog = [];
+      item.actionLog.push({ date: Store.today(), type: 'purchased', reason: `购买 · 实际 ¥${actualPrice.toFixed(2)}${item.purchaseReason ? ` · ${item.purchaseReason}` : ''}` });
       const expenses = Store.getExpenses();
       expenses.push({ id: Store.genId(), amount: actualPrice, category: 'other', source: 'wish', relatedWishId: item.id, note: item.name, occurredOn: Store.today(), createdAt: item.purchasedAt, updatedAt: item.purchasedAt });
       Store.saveExpenses(expenses);
@@ -370,19 +372,7 @@ const Wish = {
       const daily = parseFloat(overlay.querySelector('#add-daily').value) || 1;
       if (!name) { this._toast('请输入名称'); return; }
       if (!price || price <= 0) { this._toast('请输入有效价格'); return; }
-      this.items.push({
-        id: Store.genId(),
-        name,
-        price,
-        dailyProgress: daily,
-        currentProgress: 0,
-        status: 'active',
-        sealed: true,
-        progressLog: [],
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        lastProgressOn: Store.today(),
-      });
+      this.items.push(DailyDomain.createWish({ id: Store.genId(), name, price, dailyProgress: daily, today: Store.today() }));
       Store.saveWishItems(this.items);
       overlay.remove();
       this.render(document.getElementById('content'));
@@ -394,9 +384,9 @@ const Wish = {
     const dateMap = {};
     this.items.forEach(item => {
       const logs = item.progressLog || item.clickLog || [];
-      logs.forEach(log => {
+      [...logs, ...(item.actionLog || [])].forEach(log => {
         if (!dateMap[log.date]) dateMap[log.date] = [];
-        dateMap[log.date].push({ name: item.name, reason: log.reason || null });
+        dateMap[log.date].push({ name: item.name, reason: log.reason || null, amount: log.amount });
       });
     });
 
@@ -471,6 +461,7 @@ const Wish = {
           ${entries.map(e => `
             <div class="cal-detail__row">
               <span class="cal-detail__name">${this._esc(e.name)}</span>
+              <span class="cal-detail__reason">${this._esc(e.reason || (Number.isFinite(Number(e.amount)) ? `等待进度 +${Number(e.amount).toFixed(1)}` : '操作记录'))}</span>
             </div>
           `).join('')}
         </div>

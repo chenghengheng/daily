@@ -70,12 +70,12 @@ const Store = {
   restoreSnapshot(id) { const item = this.getSnapshots().find(entry => entry.id === id); return item ? this._set(item.key, item.value, { snapshot: false }) : false; },
 
   exportAll() {
-    return { version: this.SCHEMA_VERSION, exportedAt: new Date().toISOString(), config: this._get('config', {}), wish: this._get('wish', []), study: this._get('study', []), countdown: this._get('countdown', []), note: this._get('note', []), candidates: this.getCandidateItems(), expenses: this._get('expenses', []), recommendationEvents: this._get('recommendation_events', []), recommendationProfile: this._get('recommendation_profile', {}), recommendationSettings: this._get('recommendation_settings', {}), timer: this._get('timer', null), bgImage: this._get('bgImage', null) };
+    return { version: this.SCHEMA_VERSION, exportedAt: new Date().toISOString(), config: this._get('config', {}), wish: this._get('wish', []), study: this._get('study', []), countdown: this._get('countdown', []), note: this._get('note', []), candidates: this.getCandidateItems(), expenses: this._get('expenses', []), recommendationEvents: this._get('recommendation_events', []), recommendationProfile: this._get('recommendation_profile', {}), recommendationSettings: this._get('recommendation_settings', {}), timer: this._get('timer', null) };
   },
   importAll(data) {
     const validation = DailyDomain.validateImport(data);
     if (!validation.ok) return validation;
-    const mapping = { config: 'config', wish: 'wish', study: 'study', countdown: 'countdown', note: 'note', candidates: 'candidate_items', expenses: 'expenses', recommendationEvents: 'recommendation_events', recommendationProfile: 'recommendation_profile', recommendationSettings: 'recommendation_settings', timer: 'timer', bgImage: 'bgImage' };
+    const mapping = { config: 'config', wish: 'wish', study: 'study', countdown: 'countdown', note: 'note', candidates: 'candidate_items', expenses: 'expenses', recommendationEvents: 'recommendation_events', recommendationProfile: 'recommendation_profile', recommendationSettings: 'recommendation_settings', timer: 'timer' };
     const before = this.exportAll();
     this._set('full-import', before, { snapshot: false });
     for (const [field, key] of Object.entries(mapping)) if (Object.hasOwn(data, field) && !this._set(key, data[field], { snapshot: false })) {
@@ -84,8 +84,10 @@ const Store = {
     }
     return { ok: true };
   },
-  clearAll() { ['config','wish','study','countdown','note','candidate_items','expenses','recommendation_events','recommendation_profile','recommendation_settings','timer','bgImage','snapshots','full-import'].forEach(key => this._remove(key)); },
-  getBgImage() { return this._get('bgImage', null); }, saveBgImage(value) { return this._set('bgImage', value); }, clearBgImage() { return this._remove('bgImage'); },
+  clearAll() { ['config','wish','study','countdown','note','candidate_items','expenses','recommendation_events','recommendation_profile','recommendation_settings','timer','snapshots','full-import'].forEach(key => this._remove(key)); },
+  clearObsoleteData() {
+    try { localStorage.removeItem(this._prefix + ['bg', 'Image'].join('')); } catch (_) { /* best-effort migration cleanup */ }
+  },
   exportWishData() { return { version: this.SCHEMA_VERSION, exportedAt: new Date().toISOString(), wish: this._get('wish', []) }; },
   importWishData(data) { const validation = DailyDomain.validateImport(data); if (!validation.ok || !Object.hasOwn(data, 'wish')) return false; return this._set('wish', data.wish); },
   clearWishData() { return this._remove('wish'); },

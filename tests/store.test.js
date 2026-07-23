@@ -31,7 +31,8 @@ test('只保留最近十个快照并可恢复', () => {
 });
 test('完整导出包含必需数据域和版本', () => {
   const data = Store.exportAll();
-  for (const key of ['version','config','wish','study','countdown','note','candidates','expenses','recommendationEvents','recommendationProfile','recommendationSettings','timer','bgImage']) assert.ok(Object.hasOwn(data, key), key);
+  for (const key of ['version','config','wish','study','countdown','note','candidates','expenses','recommendationEvents','recommendationProfile','recommendationSettings','timer']) assert.ok(Object.hasOwn(data, key), key);
+  assert.equal(Object.hasOwn(data, 'bgImage'), false);
 });
 test('只有旧随手记时完整导出仍包含迁移后的候选事项', () => {
   values.set('daily_note', JSON.stringify([{ id: 'n1', title: '看电影', tag: 'media', status: 'active' }]));

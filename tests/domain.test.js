@@ -18,11 +18,19 @@ test('新建愿望当日立即累计一次并写入本地日期日志', () => {
   assert.equal(item.currentProgress, 8); assert.deepEqual(item.progressLog, [{ date: '2026-07-23', amount: 8, reason: '新增物品，开始等待进度' }]);
   assert.equal(Domain.applyWishProgress(item, '2026-07-23').item.currentProgress, 8);
 });
-test('年度等待进度包含每日进度并排除已放弃或已删除物品', () => {
-  const active = wish({ id: 'a', currentProgress: 10, progressLog: [{ date: '2026-01-01', amount: 4 }, { date: '2026-01-02', amount: 6 }] });
-  const abandoned = wish({ id: 'b', status: 'abandoned', currentProgress: 30, progressLog: [{ date: '2026-01-01', amount: 30 }] });
-  assert.equal(Domain.yearlyWishProgress([active, abandoned], '2026'), 10);
-  assert.equal(Domain.yearlyWishProgress([], '2026'), 0);
+test('已累积包含随手花和清单累计，提前购买补足且不重复计算', () => {
+  const wishes = [
+    wish({ id: 'a', currentProgress: 20 }),
+    wish({ id: 'b', status: 'purchased', currentProgress: 30, actualPrice: 80 }),
+    wish({ id: 'd', status: 'purchased', currentProgress: 15, actualPrice: 10 }),
+    wish({ id: 'c', status: 'abandoned', currentProgress: 25 }),
+  ];
+  const expenses = [
+    { id: 'e1', amount: 10, source: 'quick' },
+    { id: 'e2', amount: 80, source: 'wish', wishId: 'b' },
+  ];
+  assert.equal(Domain.accumulatedAmount(wishes, expenses), 125);
+  assert.equal(Domain.accumulatedAmount([], expenses), 10);
 });
 test('跨多日本地自然日补齐进度', () => {
   const result = Domain.applyWishProgress(wish(), '2026-07-25');
@@ -41,7 +49,7 @@ test('候选事项规则覆盖电影、书籍和整理任务', () => {
   assert.equal(Domain.inferCandidate({ title: '读一本书' }).minSessionMinutes, 20);
   assert.equal(Domain.inferCandidate({ title: '整理房间' }).sessionMode, 'flexible');
 });
-test('旧随手记 tag 无损迁移为候选类型', () => assert.equal(Domain.migrateNote({ id: 'n1', title: '待看', tag: 'media', status: 'active' }).type, 'movie'));
+test('旧随手记 media 保留为待确认类型，不擅自归为影片', () => assert.equal(Domain.migrateNote({ id: 'n1', title: '待看', tag: 'media', status: 'active' }).type, 'media'));
 test('用户手动选择的候选类型不会被标题关键词覆盖', () => assert.equal(Domain.inferCandidate({ title: '整理电影票', type: 'task' }).type, 'task'));
 test('推荐遵守最小时长和 continuous 边界', () => {
   const items = [Domain.inferCandidate({ id: 'movie', title: '电影', type: 'movie', estimatedMinutes: 120 }), Domain.inferCandidate({ id: 'task', title: '整理桌面' })];
@@ -54,4 +62,8 @@ test('DeepSeek 推断只发送当前事项且保留用户标题和类型', async
   assert.equal(result.title, '买灯泡'); assert.equal(result.type, 'task'); assert.equal(result.inferenceSource, 'llm');
   assert.equal(request.url, 'https://api.deepseek.com/chat/completions'); assert.match(request.options.headers.Authorization, /^Bearer /);
   assert.doesNotMatch(request.options.body, /test-only/);
+});
+test('DeepSeek 错误会显示接口返回的具体原因', async () => {
+  const provider = new Domain.DeepSeekInferenceProvider('test-only', async () => ({ ok: false, status: 401, json: async () => ({ error: { message: 'Authentication Fails' } }) }));
+  await assert.rejects(provider.infer({ title: '测试', type: 'task' }), /401：Authentication Fails/);
 });

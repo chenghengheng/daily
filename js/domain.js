@@ -3,7 +3,7 @@
   if (typeof module === 'object' && module.exports) module.exports = api;
   root.DailyDomain = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this, function (DateUtils) {
-  const TYPES = ['task', 'book', 'movie', 'series', 'idea'];
+  const TYPES = ['task', 'book', 'movie', 'series', 'idea', 'media'];
   const CATEGORIES = ['drink', 'snack', 'dining', 'entertainment', 'game_merch', 'other'];
   const STATUSES = ['active', 'in_progress', 'done', 'snoozed', 'archived'];
   const clone = value => JSON.parse(JSON.stringify(value));
@@ -54,12 +54,15 @@
     return normalizeWish({ id: input.id || '', name: input.name || '', price, plannedPrice: price, dailyProgress, currentProgress: amount, status: 'active', sealed: true, progressLog: amount > 0 ? [{ date: today, amount, reason: '新增物品，开始等待进度' }] : [], actionLog: [], createdAt: now, updatedAt: now, lastProgressOn: today });
   }
 
-  function yearlyWishProgress(items, year) {
-    return items.filter(item => item.status !== 'abandoned').reduce((sum, item) => {
-      const logs = (item.progressLog || item.clickLog || []).filter(log => String(log.date || '').startsWith(String(year)));
-      if (logs.length) return sum + logs.reduce((total, log) => total + finite(log.amount), 0);
-      return sum + (String(item.createdAt || '').startsWith(String(year)) ? finite(item.currentProgress) : 0);
+  function accumulatedAmount(wishes, expenses) {
+    const wishAmount = wishes.filter(item => item.status !== 'abandoned').reduce((sum, item) => {
+      if (item.status === 'purchased') return sum + Math.max(0, finite(item.currentProgress), finite(item.actualPrice, item.price));
+      return sum + Math.max(0, finite(item.currentProgress));
     }, 0);
+    const quickAmount = expenses
+      .filter(item => item.source !== 'wish' && !item.deletedAt)
+      .reduce((sum, item) => sum + Math.max(0, finite(item.amount)), 0);
+    return wishAmount + quickAmount;
   }
 
   function inferCandidate(input) {
@@ -89,7 +92,7 @@
   }
 
   function migrateNote(note) {
-    const typeMap = { task: 'task', media: 'movie', idea: 'idea' };
+    const typeMap = { task: 'task', media: 'media', idea: 'idea' };
     const legacyType = note.type || note.tag;
     return inferCandidate({ ...note, title: note.title || note.content || '', note: note.note || '', type: typeMap[legacyType] || legacyType, status: note.done ? 'done' : note.status });
   }
@@ -142,9 +145,17 @@
           { role: 'user', content: JSON.stringify({ title: input.title, note: input.note || '', type: input.type }) },
         ] }),
       });
-      if (!response.ok) throw new Error(`DeepSeek 请求失败（${response.status}）`);
+      if (!response.ok) {
+        let detail = '';
+        try {
+          const errorPayload = await response.json();
+          detail = errorPayload?.error?.message || errorPayload?.message || '';
+        } catch (_) { /* response may not be JSON */ }
+        throw new Error(`DeepSeek 请求失败（${response.status}${detail ? `：${detail}` : ''}）`);
+      }
       const payload = await response.json();
       const content = payload?.choices?.[0]?.message?.content;
+      if (!content) throw new Error('DeepSeek 返回内容为空，请重试');
       const parsed = JSON.parse(String(content || '').replace(/^```json\s*|\s*```$/g, ''));
       const base = inferCandidate(input);
       const safe = {};
@@ -158,5 +169,5 @@
     }
   }
 
-  return { TYPES, CATEGORIES, normalizeWish, applyWishProgress, createWish, yearlyWishProgress, inferCandidate, migrateNote, normalizeExpense, validateImport, recommend, InferenceProvider, RuleInferenceProvider, DeepSeekInferenceProvider };
+  return { TYPES, CATEGORIES, normalizeWish, applyWishProgress, createWish, accumulatedAmount, inferCandidate, migrateNote, normalizeExpense, validateImport, recommend, InferenceProvider, RuleInferenceProvider, DeepSeekInferenceProvider };
 });

@@ -90,40 +90,13 @@ const App = {
 
   init() {
     Store.onError(message => Toast.show(message, 5000));
+    Store.clearObsoleteData();
     document.getElementById('study-nav').hidden = !Store.getConfig().features.studyEnabled;
-    this._applyBgImage();
     const dueReminders = Store.getCountdownEvents().filter(event => event.type === 'reminder' && event.date <= Store.today());
     if (dueReminders.length) Toast.show(`${dueReminders.length} 个提醒已到期`, 5000);
     Countdown.cleanupExpiredAuto();  // remove expired imported countdown events
     window.addEventListener('hashchange', () => this.route());
     this.route();
-  },
-
-  _applyBgImage() {
-    const bg = Store.getBgImage();
-    if (bg) {
-      document.body.classList.add('has-bg');
-      document.body.style.backgroundImage = `url(${bg})`;
-      this._detectBgLightness(bg);
-    }
-  },
-
-  _detectBgLightness(dataUrl) {
-    const img = new Image();
-    img.onload = () => {
-      const c = document.createElement('canvas');
-      c.width = 50; c.height = 50;
-      const ctx = c.getContext('2d');
-      ctx.drawImage(img, 0, 0, 50, 50);
-      const d = ctx.getImageData(0, 0, 50, 50).data;
-      let sum = 0;
-      for (let i = 0; i < d.length; i += 4) {
-        sum += 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
-      }
-      const avg = sum / (d.length / 4);
-      document.body.classList.toggle('bg-light', avg > 180);
-    };
-    img.src = dataUrl;
   },
 
   route() {

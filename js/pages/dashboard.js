@@ -3,11 +3,9 @@ const Dashboard = {
     const wishItems = Store.getWishItems();
     const events = Store.getCountdownEvents();
     const studyEnabled = false;
-    const year = Store.today().slice(0, 4);
-
     const activeWish = wishItems.filter(i => i.status === 'active');
     const wishReady = activeWish.filter(i => i.currentProgress >= i.price).length;
-    const yearlyProgress = DailyDomain.yearlyWishProgress(wishItems, year);
+    const accumulated = DailyDomain.accumulatedAmount(wishItems, Store.getExpenses());
 
     const now = new Date();
     now.setHours(0, 0, 0, 0);
@@ -35,8 +33,8 @@ const Dashboard = {
           <div class="stat-label">进行中 · 清单</div>
         </div>
         <div class="stat-card">
-          <div class="stat-number">¥${yearlyProgress.toFixed(1)}</div>
-          <div class="stat-label">${year} 年等待进度</div>
+          <div class="stat-number">¥${accumulated.toFixed(1)}</div>
+          <div class="stat-label">已累积</div>
         </div>
       </div>
 
@@ -99,7 +97,7 @@ const Dashboard = {
     const item = DailyDomain.recommend(items, minutes, events);
     if (!item) { Toast.show('这个时长暂时没有合适事项，可以先记下一件想做的事'); return; }
     Store.addRecommendationEvent('suggested', item.id, { availableMinutes: minutes });
-    const typeLabels = { task: '事', book: '书', movie: '影', series: '剧', idea: '想法' };
+    const typeLabels = { task: '事', book: '书', movie: '影', series: '剧', idea: '想法', media: '书影音（待确认）' };
     const modal = Modal.open({ title: '现在可以做', body: `<span class="badge badge-active">${typeLabels[item.type] || '事项'}</span><h2 style="margin-top:8px;">${this._esc(item.title)}</h2><p style="color:var(--text2);">${item.sessionMode === 'continuous' ? '适合一次完成' : `可以从 ${item.minSessionMinutes} 分钟开始`}</p><div class="modal-actions"><button class="btn btn-outline" id="recommend-snooze">今天不想做</button><button class="btn btn-outline" id="recommend-switch">换一个</button><button class="btn btn-primary" id="recommend-start">开始</button></div>` });
     modal.overlay.querySelector('#recommend-switch').onclick = () => { Store.addRecommendationEvent('switched', item.id, { availableMinutes: minutes }); modal.close(); setTimeout(() => this._recommend(minutes), 180); };
     modal.overlay.querySelector('#recommend-snooze').onclick = () => { Store.addRecommendationEvent('snoozed', item.id, { until: Store.today() }); modal.close(); };
@@ -128,48 +126,16 @@ const Dashboard = {
   },
 
   _showSettingsModal() {
-    const currentBg = Store.getBgImage();
     const profile = Store.getRecommendationProfile();
-    let previewUrl = currentBg;
-
-    const renderPreview = () => {
-      if (previewUrl) {
-        return `<div style="width:100%;height:120px;border-radius:var(--radius-sm);background:url(${previewUrl}) center/cover;border:1px solid var(--border);margin-bottom:12px;"></div>`;
-      }
-      return '';
-    };
-
-    // Lightness detection using 50×50 canvas
-    const detectLightness = (dataUrl, cb) => {
-      const img = new Image();
-      img.onload = () => {
-        const c = document.createElement('canvas');
-        c.width = 50; c.height = 50;
-        const ctx = c.getContext('2d');
-        ctx.drawImage(img, 0, 0, 50, 50);
-        const d = ctx.getImageData(0, 0, 50, 50).data;
-        let sum = 0;
-        for (let i = 0; i < d.length; i += 4) sum += 0.299 * d[i] + 0.587 * d[i+1] + 0.114 * d[i+2];
-        cb(sum / (d.length / 4) > 180);
-      };
-      img.src = dataUrl;
-    };
 
     const modal = Modal.open({
       title: '个性化',
       body: `
         <div class="form-group">
-          <label>背景图片</label>
-          <div id="settings-bg-preview">${renderPreview()}</div>
-          <div style="display:flex;gap:8px;">
-            ${currentBg ? '<button class="btn btn-sm btn-danger" id="settings-bg-remove">移除现有背景</button>' : '<span style="font-size:12px;color:var(--text3);">当前没有自定义背景</span>'}
-          </div>
-          <p style="font-size:11px;color:var(--text3);margin-top:6px;">背景上传功能已移除；已有背景仍可在此删除。</p>
-        </div>
-        <div class="form-group" style="border-top:1px solid var(--border);padding-top:12px;">
           <label>DeepSeek API Key（仅本次浏览器会话）</label>
           <input id="settings-deepseek-key" type="password" autocomplete="off" placeholder="sk-..." value="">
-          <div style="display:flex;gap:8px;margin-top:8px;"><button class="btn btn-sm btn-outline" id="settings-deepseek-save">保存到本次会话</button><button class="btn btn-sm btn-outline" id="settings-deepseek-clear">清除 Key</button></div>
+          <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;"><button class="btn btn-sm btn-outline" id="settings-deepseek-save">保存到本次会话</button><button class="btn btn-sm btn-outline" id="settings-deepseek-test">测试连接</button><button class="btn btn-sm btn-outline" id="settings-deepseek-clear">清除 Key</button></div>
+          <p id="settings-deepseek-status" style="font-size:11px;color:var(--text2);margin-top:6px;">${sessionStorage.getItem('daily_deepseek_key') ? '已配置 Key' : '尚未配置 Key'}</p>
           <p style="font-size:11px;color:var(--text3);margin-top:6px;">Key 不写入 localStorage、备份或代码；关闭浏览器会话后失效。前端直连时本机开发者工具仍可看到请求。</p>
         </div>
         <div style="border-top:1px solid var(--border);padding-top:12px;margin-top:12px;">
@@ -178,7 +144,7 @@ const Dashboard = {
           <button class="btn btn-outline btn-block" id="settings-restore" style="margin-top:8px;">↩ 恢复最近快照</button>
           <button class="btn btn-outline btn-block" id="settings-clear-history" style="margin-top:8px;">清除推荐历史（保留事项）</button>
           <button class="btn btn-outline btn-block" id="settings-reset-profile" style="margin-top:8px;">恢复默认推荐偏好</button>
-          <button class="btn btn-danger btn-block" id="settings-clear-all" style="margin-top:8px;">清除全部本地数据（包括背景图）</button>
+          <button class="btn btn-danger btn-block" id="settings-clear-all" style="margin-top:8px;">清除全部本地数据</button>
           <p style="font-size:11px;color:var(--text2);margin-top:8px;">偏好摘要：已完成 ${Math.round(profile.completed || 0)} 次，时长校准 ${Math.round(profile.timeMismatch || 0)} 次。偏好会缓慢衰减，单次操作不会形成永久结论。</p>
         </div>
         <p style="font-size:11px;color:var(--text3);margin-top:12px;text-align:center;">
@@ -188,20 +154,20 @@ const Dashboard = {
       onClose() {},
     });
 
-    modal.modalEl.querySelector('#settings-deepseek-save').onclick = () => { const key = modal.modalEl.querySelector('#settings-deepseek-key').value.trim(); if (!key) { Toast.show('请输入 API Key'); return; } sessionStorage.setItem('daily_deepseek_key', key); modal.modalEl.querySelector('#settings-deepseek-key').value = ''; Toast.show('Key 已保存到本次会话'); };
-    modal.modalEl.querySelector('#settings-deepseek-clear').onclick = () => { sessionStorage.removeItem('daily_deepseek_key'); modal.modalEl.querySelector('#settings-deepseek-key').value = ''; Toast.show('Key 已从本次会话清除'); };
-
-    modal.modalEl.querySelector('#settings-bg-remove')?.addEventListener('click', () => {
-      Store.clearBgImage();
-      document.body.classList.remove('has-bg', 'bg-light');
-      document.body.style.backgroundImage = '';
-      previewUrl = null;
-      const preview = modal.modalEl.querySelector('#settings-bg-preview');
-      if (preview) preview.innerHTML = renderPreview();
-      const btn = modal.modalEl.querySelector('#settings-bg-remove');
-      if (btn) btn.remove();
-      Toast.show('已移除背景');
-    });
+    const updateKeyStatus = message => { modal.modalEl.querySelector('#settings-deepseek-status').textContent = message; };
+    modal.modalEl.querySelector('#settings-deepseek-save').onclick = () => { const key = modal.modalEl.querySelector('#settings-deepseek-key').value.trim(); if (!key) { Toast.show('请输入 API Key'); return; } sessionStorage.setItem('daily_deepseek_key', key); modal.modalEl.querySelector('#settings-deepseek-key').value = ''; updateKeyStatus('已配置 Key，建议测试连接'); Toast.show('Key 已保存到本次会话'); };
+    modal.modalEl.querySelector('#settings-deepseek-test').onclick = async () => {
+      const key = sessionStorage.getItem('daily_deepseek_key');
+      if (!key) { Toast.show('请先保存 API Key'); return; }
+      updateKeyStatus('正在连接 DeepSeek…');
+      try {
+        await new DailyDomain.DeepSeekInferenceProvider(key).infer({ title: '连接测试', note: '', type: 'task' });
+        updateKeyStatus('连接成功，可以在随手记中开启 LLM');
+      } catch (error) {
+        updateKeyStatus(error.message || '连接失败，请检查网络和 Key');
+      }
+    };
+    modal.modalEl.querySelector('#settings-deepseek-clear').onclick = () => { sessionStorage.removeItem('daily_deepseek_key'); modal.modalEl.querySelector('#settings-deepseek-key').value = ''; updateKeyStatus('尚未配置 Key'); Toast.show('Key 已从本次会话清除'); };
 
     modal.modalEl.querySelector('#settings-export')?.addEventListener('click', () => {
       const data = Store.exportAll();
@@ -226,14 +192,6 @@ const Dashboard = {
             const data = JSON.parse(ev.target.result);
             const result = Store.importAll(data);
             if (result.ok) {
-              const bg = Store.getBgImage();
-              if (bg) {
-                document.body.classList.add('has-bg');
-                document.body.style.backgroundImage = `url(${bg})`;
-                detectLightness(bg, light => document.body.classList.toggle('bg-light', light));
-              } else {
-                document.body.classList.remove('bg-light');
-              }
               modal.close();
               Dashboard.render(document.getElementById('content'));
               Toast.show('导入成功');
@@ -257,9 +215,9 @@ const Dashboard = {
       if (confirm(`恢复 ${latest.savedAt.slice(0, 19).replace('T', ' ')} 的 ${latest.key} 数据？`)) { Store.restoreSnapshot(latest.id); Toast.show('已恢复最近快照'); modal.close(); App.route(); }
     };
     modal.modalEl.querySelector('#settings-clear-all').onclick = () => {
-      if (!confirm('这会清除愿望、消费、候选事项、提醒、学习数据、推荐记录和背景图。确定继续？')) return;
+      if (!confirm('这会清除愿望、消费、候选事项、提醒、学习数据和推荐记录。确定继续？')) return;
       if (!confirm('建议先导出备份。再次确认清除全部本地数据？')) return;
-      Store.clearAll(); document.body.classList.remove('has-bg', 'bg-light'); document.body.style.backgroundImage = ''; modal.close(); App.route(); Toast.show('全部本地数据和背景图已清除');
+      Store.clearAll(); modal.close(); App.route(); Toast.show('全部本地数据已清除');
     };
   },
 

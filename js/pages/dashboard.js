@@ -2,7 +2,10 @@ const Dashboard = {
   render(container) {
     const wishItems = Store.getWishItems();
     const events = Store.getCountdownEvents();
-    const studyEnabled = false;
+    const config = Store.getConfig();
+    const studyEnabled = config.features.studyEnabled;
+    const activeTimer = Store.getTimer();
+    const timerItem = activeTimer ? Store.getCandidateItems().find(item => item.id === activeTimer.candidateId) : null;
     const activeWish = wishItems.filter(i => i.status === 'active');
     const wishReady = activeWish.filter(i => i.currentProgress >= i.price).length;
     const accumulated = DailyDomain.accumulatedAmount(wishItems, Store.getExpenses());
@@ -27,6 +30,16 @@ const Dashboard = {
           <button class="btn btn-sm btn-outline" data-minutes="custom">自定义</button>
         </div>
       </div>
+      ${activeTimer ? `
+        <div class="card" style="border-color:var(--sheikah);">
+          <div class="card-title">计时仍在进行</div>
+          <p style="font-size:14px;">${timerItem ? this._esc(timerItem.title) : '原事项已不存在'}</p>
+          <div style="display:flex;gap:8px;margin-top:10px;">
+            ${timerItem ? '<button class="btn btn-primary btn-sm" id="timer-resume">继续查看</button>' : ''}
+            <button class="btn btn-outline btn-sm" id="timer-discard">结束计时</button>
+          </div>
+        </div>
+      ` : ''}
       <div class="stat-grid stat-enter" style="margin-bottom:16px;">
         <div class="stat-card">
           <div class="stat-number">${activeWish.length}</div>
@@ -83,6 +96,8 @@ const Dashboard = {
     `;
 
     container.querySelector('#dashboard-settings-btn')?.addEventListener('click', () => this._showSettingsModal());
+    container.querySelector('#timer-resume')?.addEventListener('click', () => this._startTimer(timerItem, activeTimer.plannedMinutes, activeTimer.startedAt));
+    container.querySelector('#timer-discard')?.addEventListener('click', () => { Store.saveTimer(null); this.render(container); });
     container.querySelectorAll('.card-stagger > a[href="#/wish"], .card-stagger > a[href="#/countdown"], .card-stagger > a[href="#/study"]').forEach(element => element.remove());
     container.querySelectorAll('[data-minutes]').forEach(button => button.addEventListener('click', () => {
       let minutes = button.dataset.minutes === 'custom' ? Number(prompt('现在有多少分钟？', '30')) : Number(button.dataset.minutes);
@@ -104,19 +119,33 @@ const Dashboard = {
     modal.overlay.querySelector('#recommend-start').onclick = () => { Store.addRecommendationEvent('started', item.id, { plannedMinutes: minutes }); modal.close(); this._startTimer(item, minutes); };
   },
 
-  _startTimer(item, minutes) {
-    const startedAt = Date.now();
+  _startTimer(item, minutes, persistedStartedAt = null) {
+    const parsedStartedAt = persistedStartedAt ? Date.parse(persistedStartedAt) : NaN;
+    const startedAt = Number.isFinite(parsedStartedAt) ? parsedStartedAt : Date.now();
     Store.saveTimer({ candidateId: item.id, plannedMinutes: minutes, startedAt: new Date(startedAt).toISOString() });
     let interval;
     const modal = Modal.open({ title: '计时中', body: `<h2>${this._esc(item.title)}</h2><div class="stat-number" id="session-clock">00:00</div><div class="modal-actions"><button class="btn btn-outline" id="session-stop">结束本次</button></div>`, onClose: () => { if (interval) clearInterval(interval); } });
     const clock = modal.overlay.querySelector('#session-clock');
-    interval = setInterval(() => { const seconds = Math.floor((Date.now() - startedAt) / 1000); clock.textContent = `${String(Math.floor(seconds / 60)).padStart(2,'0')}:${String(seconds % 60).padStart(2,'0')}`; }, 1000);
+    const updateClock = () => { const seconds = Math.max(0, Math.floor((Date.now() - startedAt) / 1000)); clock.textContent = `${String(Math.floor(seconds / 60)).padStart(2,'0')}:${String(seconds % 60).padStart(2,'0')}`; };
+    updateClock();
+    interval = setInterval(updateClock, 1000);
     modal.overlay.querySelector('#session-stop').onclick = () => { clearInterval(interval); Store.saveTimer(null); const actual = Math.max(1, Math.round((Date.now() - startedAt) / 60000)); if (actual < minutes) Store.addRecommendationEvent('stopped_early', item.id, { plannedMinutes: minutes, actualMinutes: actual }); modal.close(); setTimeout(() => this._finishSession(item, minutes, actual), 180); };
   },
 
   _finishSession(item, plannedMinutes, actualMinutes) {
     const modal = Modal.open({ title: '这次怎么样？', body: `<h2>这次怎么样？</h2><div style="display:grid;gap:8px;"><button class="btn btn-primary" data-result="completed">完成了</button><button class="btn btn-outline" data-result="continue">还要继续</button><button class="btn btn-outline" data-result="mismatch">不适合这个时长</button></div>` });
-    modal.overlay.querySelectorAll('[data-result]').forEach(button => button.onclick = () => { const result = button.dataset.result; Store.addRecommendationEvent(result === 'completed' ? 'completed' : result === 'mismatch' ? 'time_mismatch' : 'started', item.id, { plannedMinutes, actualMinutes }); if (result === 'completed') { const items = Store.getCandidateItems(); const current = items.find(value => value.id === item.id); if (current) { current.status = 'done'; current.updatedAt = new Date().toISOString(); Store.saveCandidateItems(items); } } modal.close(); if (result === 'mismatch') setTimeout(() => this._calibrateDuration(item), 180); });
+    modal.overlay.querySelectorAll('[data-result]').forEach(button => button.onclick = () => {
+      const result = button.dataset.result;
+      Store.addRecommendationEvent(result === 'completed' ? 'completed' : result === 'mismatch' ? 'time_mismatch' : 'started', item.id, { plannedMinutes, actualMinutes });
+      if (result === 'completed') {
+        const items = Store.getCandidateItems();
+        const current = items.find(value => value.id === item.id);
+        if (current) { current.status = 'done'; current.updatedAt = new Date().toISOString(); Store.saveCandidateItems(items); }
+      }
+      modal.close();
+      if (result === 'mismatch') setTimeout(() => this._calibrateDuration(item), 180);
+      if (result === 'continue') setTimeout(() => this._startTimer(item, plannedMinutes), 180);
+    });
   },
 
   _calibrateDuration(item) {

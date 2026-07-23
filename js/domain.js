@@ -117,7 +117,11 @@
     const minutes = Math.max(1, finite(availableMinutes, 30));
     const recent = events.slice(-30);
     const snoozedToday = new Set(recent.filter(event => event.type === 'snoozed' && DateUtils.localDate(new Date(event.createdAt)) === DateUtils.localDate()).map(event => event.candidateId));
-    const eligible = items.filter(item => ['active', 'in_progress'].includes(item.status) && !snoozedToday.has(item.id)).filter(item => item.sessionMode === 'continuous' ? (!item.estimatedMinutes || item.estimatedMinutes <= minutes * 1.15) : item.minSessionMinutes <= minutes);
+    const eligible = items.filter(item => ['active', 'in_progress'].includes(item.status) && !snoozedToday.has(item.id)).filter(item => {
+      if (item.sessionMode !== 'continuous') return item.minSessionMinutes <= minutes;
+      const requiredMinutes = Math.max(1, finite(item.estimatedMinutes, item.minSessionMinutes));
+      return requiredMinutes <= minutes * 1.15;
+    });
     const scored = eligible.map(item => {
       const target = item.estimatedMinutes || item.minSessionMinutes;
       let score = 100 - Math.min(60, Math.abs(minutes - target));

@@ -275,19 +275,11 @@ const Wish = {
     overlay.querySelector('#purchase-yes').addEventListener('click', () => {
       const actualPrice = Number(overlay.querySelector('#purchase-price').value);
       if (!Number.isFinite(actualPrice) || actualPrice < 0) { this._toast('请输入有效实际价格'); return; }
-      item.status = 'purchased';
-      item.plannedPrice = item.price;
-      item.actualPrice = actualPrice;
-      item.purchasedAt = new Date().toISOString();
-      item.progressAtPurchase = item.currentProgress;
-      item.purchaseTiming = item.currentProgress >= item.price ? 'ready' : 'early';
-      item.purchaseReason = overlay.querySelector('#purchase-reason').value.trim();
-      if (!Array.isArray(item.actionLog)) item.actionLog = [];
-      item.actionLog.push({ date: Store.today(), type: 'purchased', reason: `购买 · 实际 ¥${actualPrice.toFixed(2)}${item.purchaseReason ? ` · ${item.purchaseReason}` : ''}` });
-      const expenses = Store.getExpenses();
-      expenses.push({ id: Store.genId(), amount: actualPrice, category: 'other', source: 'wish', relatedWishId: item.id, note: item.name, occurredOn: Store.today(), createdAt: item.purchasedAt, updatedAt: item.purchasedAt });
-      Store.saveExpenses(expenses);
-      Store.saveWishItems(this.items);
+      const result = Store.purchaseWish(item.id, {
+        actualPrice,
+        reason: overlay.querySelector('#purchase-reason').value,
+      });
+      if (!result.ok) { this._toast(result.error || '购买记录保存失败'); return; }
       overlay.remove();
       this.render(document.getElementById('content'));
     });

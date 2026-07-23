@@ -38,3 +38,33 @@ test('只有旧随手记时完整导出仍包含迁移后的候选事项', () =>
   values.set('daily_note', JSON.stringify([{ id: 'n1', title: '看电影', tag: 'media', status: 'active' }]));
   const data = Store.exportAll(); assert.equal(data.candidates.length, 1); assert.equal(data.candidates[0].title, '看电影');
 });
+test('导入旧 note 备份会覆盖已有 candidate_items', () => {
+  Store.saveCandidateItems([{ id: 'current', title: '当前事项', type: 'task', status: 'active' }]);
+  const result = Store.importAll({ version: 2, note: [{ id: 'legacy', title: '旧备份事项', tag: 'task', status: 'active' }] });
+  assert.equal(result.ok, true);
+  assert.deepEqual(Store.getCandidateItems().map(item => item.id), ['legacy']);
+});
+test('购买愿望通过一个命令同时写入愿望和消费', () => {
+  Store.saveWishItems([{ id: 'w1', name: '耳机', price: 100, currentProgress: 20, dailyProgress: 1, status: 'active' }]);
+  const result = Store.purchaseWish('w1', { actualPrice: 88, reason: '需要', now: '2026-07-23T10:00:00.000Z', today: '2026-07-23', expenseId: 'e1' });
+  assert.equal(result.ok, true);
+  assert.equal(Store.getWishItems()[0].status, 'purchased');
+  assert.deepEqual(Store.getExpenses().map(item => [item.id, item.relatedWishId, item.amount]), [['e1', 'w1', 88]]);
+});
+test('购买愿望第二次写入失败时回滚消费记录', () => {
+  Store.saveWishItems([{ id: 'w1', name: '耳机', price: 100, currentProgress: 20, dailyProgress: 1, status: 'active' }]);
+  const originalSetItem = localStorage.setItem;
+  let failed = false;
+  localStorage.setItem = (key, value) => {
+    if (!failed && key === 'daily_wish') { failed = true; throw new Error('quota'); }
+    return originalSetItem(key, value);
+  };
+  try {
+    const result = Store.purchaseWish('w1', { actualPrice: 88, now: '2026-07-23T10:00:00.000Z', today: '2026-07-23', expenseId: 'e1' });
+    assert.equal(result.ok, false);
+    assert.equal(Store.getWishItems()[0].status, 'active');
+    assert.deepEqual(Store.getExpenses(), []);
+  } finally {
+    localStorage.setItem = originalSetItem;
+  }
+});

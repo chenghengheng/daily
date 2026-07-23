@@ -97,10 +97,9 @@ const Countdown = {
   },
 
   _showAddModal() {
-    const overlay = document.createElement('div');
-    overlay.className = 'modal-overlay';
-    overlay.innerHTML = `
-      <div class="modal">
+    const modal = Modal.open({
+      title: '新事件',
+      body: `
         <h2>新事件</h2>
         <div class="form-group">
           <label>标题</label>
@@ -135,9 +134,9 @@ const Countdown = {
           <button class="btn btn-outline" id="cd-cancel">取消</button>
           <button class="btn btn-primary" id="cd-confirm">添加</button>
         </div>
-      </div>
-    `;
-    document.body.appendChild(overlay);
+      `,
+    });
+    const overlay = modal.overlay;
 
     let selectedType = 'event';
     let keepAfter = false;
@@ -162,7 +161,7 @@ const Countdown = {
       overlay.querySelectorAll('.choice-button').forEach(item => item.setAttribute('aria-pressed', String(item === btn)));
     }));
 
-    overlay.querySelector('#cd-cancel').addEventListener('click', () => overlay.remove());
+    overlay.querySelector('#cd-cancel').addEventListener('click', () => modal.close());
     overlay.querySelector('#cd-confirm').addEventListener('click', () => {
       const title = overlay.querySelector('#cd-title').value.trim();
       const date = overlay.querySelector('#cd-date').value;
@@ -177,7 +176,7 @@ const Countdown = {
         keepAfter: selectedType === 'reminder' ? keepAfter : true,
       });
       Store.saveCountdownEvents(this.events);
-      overlay.remove();
+      modal.close();
       this.render(document.getElementById('content'));
     });
   },

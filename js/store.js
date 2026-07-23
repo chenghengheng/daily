@@ -75,14 +75,46 @@ const Store = {
   importAll(data) {
     const validation = DailyDomain.validateImport(data);
     if (!validation.ok) return validation;
+    const imported = { ...data };
+    if (!Object.hasOwn(imported, 'candidates') && Object.hasOwn(imported, 'note')) {
+      imported.candidates = imported.note.map(DailyDomain.migrateNote);
+    }
     const mapping = { config: 'config', wish: 'wish', study: 'study', countdown: 'countdown', note: 'note', candidates: 'candidate_items', expenses: 'expenses', recommendationEvents: 'recommendation_events', recommendationProfile: 'recommendation_profile', recommendationSettings: 'recommendation_settings', timer: 'timer' };
     const before = this.exportAll();
     this._set('full-import', before, { snapshot: false });
-    for (const [field, key] of Object.entries(mapping)) if (Object.hasOwn(data, field) && !this._set(key, data[field], { snapshot: false })) {
+    for (const [field, key] of Object.entries(mapping)) if (Object.hasOwn(imported, field) && !this._set(key, imported[field], { snapshot: false })) {
       for (const [oldField, oldKey] of Object.entries(mapping)) this._set(oldKey, before[oldField], { snapshot: false });
       return { ok: false, error: '写入导入数据失败，已恢复导入前数据' };
     }
     return { ok: true };
+  },
+  purchaseWish(wishId, input) {
+    const wishesBefore = this.getWishItems();
+    const expensesBefore = this.getExpenses();
+    const wishes = JSON.parse(JSON.stringify(wishesBefore));
+    const expenses = JSON.parse(JSON.stringify(expensesBefore));
+    const item = wishes.find(value => value.id === wishId);
+    const actualPrice = Number(input?.actualPrice);
+    if (!item || item.status !== 'active') return { ok: false, error: '愿望状态已变化，请刷新后重试' };
+    if (!Number.isFinite(actualPrice) || actualPrice < 0) return { ok: false, error: '请输入有效实际价格' };
+    const now = input.now || new Date().toISOString();
+    const today = input.today || this.today();
+    item.status = 'purchased';
+    item.plannedPrice = item.price;
+    item.actualPrice = actualPrice;
+    item.purchasedAt = now;
+    item.progressAtPurchase = item.currentProgress;
+    item.purchaseTiming = item.currentProgress >= item.price ? 'ready' : 'early';
+    item.purchaseReason = String(input.reason || '').trim();
+    if (!Array.isArray(item.actionLog)) item.actionLog = [];
+    item.actionLog.push({ date: today, type: 'purchased', reason: `购买 · 实际 ¥${actualPrice.toFixed(2)}${item.purchaseReason ? ` · ${item.purchaseReason}` : ''}` });
+    expenses.push({ id: input.expenseId || this.genId(), amount: actualPrice, category: 'other', source: 'wish', relatedWishId: item.id, note: item.name, occurredOn: today, createdAt: now, updatedAt: now });
+    if (!this._set('expenses', expenses)) return { ok: false, error: '购买记录保存失败' };
+    if (!this._set('wish', wishes)) {
+      this._set('expenses', expensesBefore, { snapshot: false });
+      return { ok: false, error: '愿望保存失败，消费记录已回滚' };
+    }
+    return { ok: true, item };
   },
   clearAll() { ['config','wish','study','countdown','note','candidate_items','expenses','recommendation_events','recommendation_profile','recommendation_settings','timer','snapshots','full-import'].forEach(key => this._remove(key)); },
   clearObsoleteData() {

@@ -55,6 +55,11 @@ test('推荐遵守最小时长和 continuous 边界', () => {
   const items = [Domain.inferCandidate({ id: 'movie', title: '电影', type: 'movie', estimatedMinutes: 120 }), Domain.inferCandidate({ id: 'task', title: '整理桌面' })];
   assert.equal(Domain.recommend(items, 20, [], () => 0).id, 'task');
 });
+test('未知总时长的 continuous 事项仍遵守最小有效时长', () => {
+  const movie = Domain.inferCandidate({ id: 'movie', title: '电影', type: 'movie' });
+  assert.equal(Domain.recommend([movie], 10, [], () => 0), null);
+  assert.equal(Domain.recommend([movie], 90, [], () => 0).id, 'movie');
+});
 test('DeepSeek 推断只发送当前事项且保留用户标题和类型', async () => {
   let request;
   const provider = new Domain.DeepSeekInferenceProvider('test-only', async (url, options) => { request = { url, options }; return { ok: true, json: async () => ({ choices: [{ message: { content: '{"minSessionMinutes":12,"sessionMode":"flexible","energy":"low"}' } }] }) }; });

@@ -18,7 +18,7 @@ test('新建愿望当日立即累计一次并写入本地日期日志', () => {
   assert.equal(item.currentProgress, 8); assert.deepEqual(item.progressLog, [{ date: '2026-07-23', amount: 8, reason: '新增物品，开始等待进度' }]);
   assert.equal(Domain.applyWishProgress(item, '2026-07-23').item.currentProgress, 8);
 });
-test('已累积包含随手花和清单累计，提前购买补足且不重复计算', () => {
+test('等待进度只包含进行中愿望，购买后该愿望贡献清零', () => {
   const wishes = [
     wish({ id: 'a', currentProgress: 20 }),
     wish({ id: 'b', status: 'purchased', currentProgress: 30, actualPrice: 80 }),
@@ -29,7 +29,7 @@ test('已累积包含随手花和清单累计，提前购买补足且不重复�
     { id: 'e1', amount: 10, source: 'quick' },
     { id: 'e2', amount: 80, source: 'wish', wishId: 'b' },
   ];
-  assert.equal(Domain.accumulatedAmount(wishes, expenses), 125);
+  assert.equal(Domain.accumulatedAmount(wishes, expenses), 30);
   assert.equal(Domain.accumulatedAmount([], expenses), 10);
 });
 test('跨多日本地自然日补齐进度', () => {
@@ -71,4 +71,17 @@ test('DeepSeek 推断只发送当前事项且保留用户标题和类型', async
 test('DeepSeek 错误会显示接口返回的具体原因', async () => {
   const provider = new Domain.DeepSeekInferenceProvider('test-only', async () => ({ ok: false, status: 401, json: async () => ({ error: { message: 'Authentication Fails' } }) }));
   await assert.rejects(provider.infer({ title: '测试', type: 'task' }), /401：Authentication Fails/);
+});
+test('DeepSeek 默认 fetch 保持全局调用上下文', async () => {
+  const originalFetch = global.fetch;
+  global.fetch = function () {
+    assert.equal(this, globalThis);
+    return Promise.resolve({ ok: true, json: async () => ({ choices: [{ message: { content: '{}' } }] }) });
+  };
+  try {
+    const result = await new Domain.DeepSeekInferenceProvider('test-only').infer({ title: '连接测试', type: 'task' });
+    assert.equal(result.title, '连接测试');
+  } finally {
+    global.fetch = originalFetch;
+  }
 });

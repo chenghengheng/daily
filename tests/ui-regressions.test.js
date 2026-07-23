@@ -26,4 +26,4 @@ test('倒计时新增流程使用统一 Modal 接缝', () => assert.match(countd
 test('背景功能已从页面、应用、存储和样式中完全移除', () => {
   assert.doesNotMatch(dashboardSource + appSource + storeSource + styleSource, /背景图片|背景图|bgImage|has-bg|bg-light/);
 });
-test('本轮发布更新离线缓存版本', () => assert.match(serviceWorkerSource, /daily-shell-v6/));
+test('本轮发布更新离线缓存版本', () => assert.match(serviceWorkerSource, /daily-shell-v7/));

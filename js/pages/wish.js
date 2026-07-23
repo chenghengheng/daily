@@ -301,7 +301,7 @@ const Wish = {
   },
 
   _calcAccumulated() {
-    return this.items.filter(i => i.status !== 'abandoned').reduce((s, i) => s + i.currentProgress, 0);
+    return this.items.filter(i => i.status === 'active').reduce((s, i) => s + i.currentProgress, 0);
   },
 
   _deleteItem(id) {

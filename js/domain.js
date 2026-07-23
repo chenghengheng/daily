@@ -55,10 +55,9 @@
   }
 
   function accumulatedAmount(wishes, expenses) {
-    const wishAmount = wishes.filter(item => item.status !== 'abandoned').reduce((sum, item) => {
-      if (item.status === 'purchased') return sum + Math.max(0, finite(item.currentProgress), finite(item.actualPrice, item.price));
-      return sum + Math.max(0, finite(item.currentProgress));
-    }, 0);
+    const wishAmount = wishes
+      .filter(item => item.status === 'active')
+      .reduce((sum, item) => sum + Math.max(0, finite(item.currentProgress)), 0);
     const quickAmount = expenses
       .filter(item => item.source !== 'wish' && !item.deletedAt)
       .reduce((sum, item) => sum + Math.max(0, finite(item.amount)), 0);
@@ -138,7 +137,11 @@
   class InferenceProvider { infer() { throw new Error('InferenceProvider.infer must be implemented'); } }
   class RuleInferenceProvider extends InferenceProvider { infer(input) { return Promise.resolve(inferCandidate(input)); } }
   class DeepSeekInferenceProvider extends InferenceProvider {
-    constructor(apiKey, fetchImpl = fetch) { super(); this.apiKey = apiKey; this.fetchImpl = fetchImpl; }
+    constructor(apiKey, fetchImpl) {
+      super();
+      this.apiKey = apiKey;
+      this.fetchImpl = fetchImpl || globalThis.fetch.bind(globalThis);
+    }
     async infer(input) {
       if (!this.apiKey) throw new Error('尚未设置 DeepSeek API Key');
       const response = await this.fetchImpl('https://api.deepseek.com/chat/completions', {

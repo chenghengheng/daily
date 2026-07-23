@@ -148,7 +148,7 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${this.apiKey}` },
         body: JSON.stringify({ model: 'deepseek-v4-flash', thinking: { type: 'disabled' }, response_format: { type: 'json_object' }, stream: false, messages: [
-          { role: 'system', content: '根据用户标题和备忘补充事项属性。只返回 JSON：estimatedMinutes 可省略；minSessionMinutes 为正整数；sessionMode 只能是 continuous、segmentable、flexible；energy 只能是 low、medium、high；contexts 为字符串数组；inferenceConfidence 为 0 到 1。不要改写标题、备忘和用户选择的 type。' },
+          { role: 'system', content: '根据用户标题和备忘补充事项属性。只返回 JSON：estimatedMinutes 为预计总时长；minSessionMinutes 为最小有效时长；sessionMode 只能是 continuous、segmentable、flexible；energy 只能是 low、medium、high；contexts 为字符串数组；inferenceConfidence 为 0 到 1。电影必须根据片名估计完整片长并返回 estimatedMinutes，sessionMode 必须为 continuous；若无法识别具体电影，使用保守的 120 分钟并降低 inferenceConfidence。不要改写标题、备忘和用户选择的 type。' },
           { role: 'user', content: JSON.stringify({ title: input.title, note: input.note || '', type: input.type }) },
         ] }),
       });
@@ -172,6 +172,11 @@
       if (['low','medium','high'].includes(parsed.energy)) safe.energy = parsed.energy;
       if (Array.isArray(parsed.contexts)) safe.contexts = parsed.contexts.filter(value => typeof value === 'string').slice(0, 5);
       if (Number.isFinite(Number(parsed.inferenceConfidence))) safe.inferenceConfidence = Math.max(0, Math.min(1, Number(parsed.inferenceConfidence)));
+      if (base.type === 'movie') {
+        safe.sessionMode = 'continuous';
+        safe.estimatedMinutes = safe.estimatedMinutes || 120;
+        safe.minSessionMinutes = safe.estimatedMinutes;
+      }
       return inferCandidate({ ...base, ...safe, title: base.title, note: base.note, type: base.type, inferenceSource: 'llm' });
     }
   }

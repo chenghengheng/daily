@@ -156,6 +156,7 @@ const Dashboard = {
 
   _showSettingsModal() {
     const profile = Store.getRecommendationProfile();
+    const llmLog = LlmDiagnostics.latest();
 
     const modal = Modal.open({
       title: '个性化',
@@ -166,6 +167,11 @@ const Dashboard = {
           <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;"><button class="btn btn-sm btn-outline" id="settings-deepseek-save">保存到本次会话</button><button class="btn btn-sm btn-outline" id="settings-deepseek-test">测试连接</button><button class="btn btn-sm btn-outline" id="settings-deepseek-clear">清除 Key</button></div>
           <p id="settings-deepseek-status" style="font-size:11px;color:var(--text2);margin-top:6px;">${sessionStorage.getItem('daily_deepseek_key') ? '已配置 Key' : '尚未配置 Key'}</p>
           <p style="font-size:11px;color:var(--text3);margin-top:6px;">Key 不写入 localStorage、备份或代码；关闭浏览器会话后失效。前端直连时本机开发者工具仍可看到请求。</p>
+          <details style="margin-top:10px;">
+            <summary style="cursor:pointer;font-size:12px;color:var(--text2);">最近一次 LLM 诊断</summary>
+            <pre style="white-space:pre-wrap;font-size:11px;color:var(--text2);margin-top:8px;">${this._esc(llmLog ? JSON.stringify(llmLog, null, 2) : '当前会话还没有 LLM 请求')}</pre>
+            ${llmLog ? '<button class="btn btn-sm btn-outline" id="settings-llm-log-clear">清除诊断</button>' : ''}
+          </details>
         </div>
         <div style="border-top:1px solid var(--border);padding-top:12px;margin-top:12px;">
           <button class="btn btn-outline btn-block" id="settings-export">📤 导出数据</button>
@@ -190,13 +196,16 @@ const Dashboard = {
       if (!key) { Toast.show('请先保存 API Key'); return; }
       updateKeyStatus('正在连接 DeepSeek…');
       try {
-        await new DailyDomain.DeepSeekInferenceProvider(key).infer({ title: '连接测试', note: '', type: 'task' });
+        const result = await new DailyDomain.DeepSeekInferenceProvider(key).infer({ title: '连接测试', note: '', type: 'task' });
+        LlmDiagnostics.record({ action: '连接测试', status: '成功', output: { sessionMode: result.sessionMode, minSessionMinutes: result.minSessionMinutes } });
         updateKeyStatus('连接成功，可以在随手记中开启 LLM');
       } catch (error) {
+        LlmDiagnostics.record({ action: '连接测试', status: '失败', error: error.message || '连接失败' });
         updateKeyStatus(error.message || '连接失败，请检查网络和 Key');
       }
     };
     modal.modalEl.querySelector('#settings-deepseek-clear').onclick = () => { sessionStorage.removeItem('daily_deepseek_key'); modal.modalEl.querySelector('#settings-deepseek-key').value = ''; updateKeyStatus('尚未配置 Key'); Toast.show('Key 已从本次会话清除'); };
+    modal.modalEl.querySelector('#settings-llm-log-clear')?.addEventListener('click', () => { LlmDiagnostics.clear(); modal.close(); this._showSettingsModal(); });
 
     modal.modalEl.querySelector('#settings-export')?.addEventListener('click', () => {
       const data = Store.exportAll();

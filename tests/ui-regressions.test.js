@@ -20,10 +20,12 @@ test('DeepSeek Key 仅使用 sessionStorage 且不进入 Store', () => { assert.
 test('购买行为通过单一命令写入并由日历合并展示详情', () => { assert.match(wishSource, /Store\.purchaseWish/); assert.match(storeSource, /actionLog\.push/); assert.match(wishSource, /progressLog[\s\S]{0,160}actionLog/); assert.match(wishSource, /cal-detail__reason/); });
 test('随手记有独立 LLM 开关', () => assert.match(noteSource, /daily_llm_enabled/));
 test('DeepSeek 可测试连接且事项展示标注来源', () => { assert.match(dashboardSource, /settings-deepseek-test/); assert.match(noteSource, /DeepSeek 标注成功/); });
+test('电影卡片显示预计总时长而非最短时长', () => { assert.match(noteSource, /estimatedMinutes/); assert.match(noteSource, /预计约/); });
+test('LLM 诊断日志仅保存在当前会话且可在设置查看', () => { assert.match(appSource, /LlmDiagnostics/); assert.match(appSource, /sessionStorage/); assert.match(dashboardSource, /最近一次 LLM 诊断/); });
 test('推荐结果显示事项类型标签', () => assert.match(dashboardSource, /typeLabels\[item\.type\]/));
 test('仪表盘使用功能开关并可恢复持久化计时', () => { assert.match(dashboardSource, /config\.features\.studyEnabled/); assert.match(dashboardSource, /Store\.getTimer/); assert.match(dashboardSource, /timer-resume/); });
 test('倒计时新增流程使用统一 Modal 接缝', () => assert.match(countdownSource, /_showAddModal\(\)[\s\S]{0,180}Modal\.open/));
 test('背景功能已从页面、应用、存储和样式中完全移除', () => {
   assert.doesNotMatch(dashboardSource + appSource + storeSource + styleSource, /背景图片|背景图|bgImage|has-bg|bg-light/);
 });
-test('本轮发布更新离线缓存版本', () => assert.match(serviceWorkerSource, /daily-shell-v7/));
+test('本轮发布更新离线缓存版本', () => assert.match(serviceWorkerSource, /daily-shell-v8/));

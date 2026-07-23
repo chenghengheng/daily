@@ -26,6 +26,20 @@ const Toast = {
   },
 };
 
+const LlmDiagnostics = {
+  _key: 'daily_llm_last_diagnostic',
+  record(entry) {
+    const value = { at: new Date().toISOString(), ...entry };
+    sessionStorage.setItem(this._key, JSON.stringify(value));
+    return value;
+  },
+  latest() {
+    try { return JSON.parse(sessionStorage.getItem(this._key) || 'null'); }
+    catch (_) { return null; }
+  },
+  clear() { sessionStorage.removeItem(this._key); },
+};
+
 /** Modal helper: creates a modal with animation, keyboard & focus support */
 const Modal = {
   open(config) {

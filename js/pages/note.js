@@ -19,7 +19,10 @@ const Note = {
     const labels = { task: '要做的事', book: '书', movie: '电影', series: '剧集', idea: '想法', media: '书影音（待确认）' };
     const modes = { continuous: '适合一次完成', segmentable: '可以分段', flexible: '随时可停' };
     const source = item.inferenceSource === 'llm' ? 'DeepSeek 标注' : item.inferenceSource === 'user' ? '手动确认' : '本地标注';
-    return `<div class="card note-item" data-id="${item.id}"><span class="badge badge-active">${labels[item.type] || '事项'}</span><div style="font-size:16px;font-weight:600;margin-top:8px;">${this._esc(item.title)}</div>${item.note ? `<p style="color:var(--text2);margin-top:4px;">${this._esc(item.note)}</p>` : ''}<p style="font-size:12px;color:var(--text2);margin-top:8px;">${modes[item.sessionMode]} · 最短 ${item.minSessionMinutes} 分钟 · ${source}</p>${item.type === 'media' ? `<button class="btn btn-sm btn-outline" data-classify="${item.id}">确认是书 / 影 / 剧</button>` : ''}${item.status === 'done' || item.status === 'archived' ? '' : `<div style="display:flex;gap:8px;margin-top:10px;"><button class="btn btn-sm btn-primary" data-done="${item.id}">完成</button><button class="btn btn-sm btn-outline" data-archive="${item.id}">归档</button></div>`}</div>`;
+    const duration = item.sessionMode === 'continuous'
+      ? `预计约 ${this._formatHours(item.estimatedMinutes || item.minSessionMinutes)}`
+      : `最短 ${item.minSessionMinutes} 分钟`;
+    return `<div class="card note-item" data-id="${item.id}"><span class="badge badge-active">${labels[item.type] || '事项'}</span><div style="font-size:16px;font-weight:600;margin-top:8px;">${this._esc(item.title)}</div>${item.note ? `<p style="color:var(--text2);margin-top:4px;">${this._esc(item.note)}</p>` : ''}<p style="font-size:12px;color:var(--text2);margin-top:8px;">${modes[item.sessionMode]} · ${duration} · ${source}</p>${item.type === 'media' ? `<button class="btn btn-sm btn-outline" data-classify="${item.id}">确认是书 / 影 / 剧</button>` : ''}${item.status === 'done' || item.status === 'archived' ? '' : `<div style="display:flex;gap:8px;margin-top:10px;"><button class="btn btn-sm btn-primary" data-done="${item.id}">完成</button><button class="btn btn-sm btn-outline" data-archive="${item.id}">归档</button></div>`}</div>`;
   },
   _classify(id) {
     const item = this.items.find(value => value.id === id);
@@ -48,12 +51,24 @@ const Note = {
       let item = DailyDomain.inferCandidate(input);
       const apiKey = sessionStorage.getItem('daily_deepseek_key');
       if (llmEnabled && apiKey) {
-        try { item = await new DailyDomain.DeepSeekInferenceProvider(apiKey).infer(input); Toast.show('DeepSeek 标注成功'); }
-        catch (error) { Toast.show(`${error.message || '网络请求失败'}，已使用本地规则`, 5000); }
+        try {
+          item = await new DailyDomain.DeepSeekInferenceProvider(apiKey).infer(input);
+          LlmDiagnostics.record({ action: '事项标注', status: '成功', input: { title: input.title, type: input.type }, output: { estimatedMinutes: item.estimatedMinutes, minSessionMinutes: item.minSessionMinutes, sessionMode: item.sessionMode, inferenceConfidence: item.inferenceConfidence } });
+          Toast.show('DeepSeek 标注成功');
+        } catch (error) {
+          LlmDiagnostics.record({ action: '事项标注', status: '失败', input: { title: input.title, type: input.type }, error: error.message || '网络请求失败' });
+          Toast.show(`${error.message || '网络请求失败'}，已使用本地规则`, 5000);
+        }
       }
       this.items.push(item); Store.saveCandidateItems(this.items); modal.close(); this.render(document.getElementById('content'));
     };
   },
   _update(id, status) { const item = this.items.find(value => value.id === id); if (!item) return; item.status = status; item.updatedAt = new Date().toISOString(); Store.saveCandidateItems(this.items); Store.addRecommendationEvent(status === 'archived' ? 'archived' : 'completed', id, { source: 'candidate-list' }); this.render(document.getElementById('content')); },
+  _formatHours(minutes) {
+    const rounded = Math.max(15, Math.round(Number(minutes || 0) / 15) * 15);
+    if (rounded < 60) return `${rounded} 分钟`;
+    const hours = rounded / 60;
+    return `${Number.isInteger(hours) ? hours : hours.toFixed(1)} 小时`;
+  },
   _esc(value) { const element = document.createElement('div'); element.textContent = value || ''; return element.innerHTML; },
 };

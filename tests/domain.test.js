@@ -85,3 +85,13 @@ test('DeepSeek 默认 fetch 保持全局调用上下文', async () => {
     global.fetch = originalFetch;
   }
 });
+test('DeepSeek 为电影生成连续观看总时长并忽略过短最小时长', async () => {
+  const provider = new Domain.DeepSeekInferenceProvider('test-only', async () => ({
+    ok: true,
+    json: async () => ({ choices: [{ message: { content: '{"estimatedMinutes":113,"minSessionMinutes":10,"sessionMode":"continuous"}' } }] }),
+  }));
+  const result = await provider.infer({ title: '记忆碎片', type: 'movie' });
+  assert.equal(result.estimatedMinutes, 113);
+  assert.equal(result.minSessionMinutes, 113);
+  assert.equal(result.sessionMode, 'continuous');
+});

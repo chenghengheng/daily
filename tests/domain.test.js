@@ -31,7 +31,16 @@ test('候选事项规则覆盖电影、书籍和整理任务', () => {
   assert.equal(Domain.inferCandidate({ title: '整理房间' }).sessionMode, 'flexible');
 });
 test('旧随手记 tag 无损迁移为候选类型', () => assert.equal(Domain.migrateNote({ id: 'n1', title: '待看', tag: 'media', status: 'active' }).type, 'movie'));
+test('用户手动选择的候选类型不会被标题关键词覆盖', () => assert.equal(Domain.inferCandidate({ title: '整理电影票', type: 'task' }).type, 'task'));
 test('推荐遵守最小时长和 continuous 边界', () => {
   const items = [Domain.inferCandidate({ id: 'movie', title: '电影', type: 'movie', estimatedMinutes: 120 }), Domain.inferCandidate({ id: 'task', title: '整理桌面' })];
   assert.equal(Domain.recommend(items, 20, [], () => 0).id, 'task');
+});
+test('DeepSeek 推断只发送当前事项且保留用户标题和类型', async () => {
+  let request;
+  const provider = new Domain.DeepSeekInferenceProvider('test-only', async (url, options) => { request = { url, options }; return { ok: true, json: async () => ({ choices: [{ message: { content: '{"minSessionMinutes":12,"sessionMode":"flexible","energy":"low"}' } }] }) }; });
+  const result = await provider.infer({ id: 'c1', title: '买灯泡', note: '楼下', type: 'task' });
+  assert.equal(result.title, '买灯泡'); assert.equal(result.type, 'task'); assert.equal(result.inferenceSource, 'llm');
+  assert.equal(request.url, 'https://api.deepseek.com/chat/completions'); assert.match(request.options.headers.Authorization, /^Bearer /);
+  assert.doesNotMatch(request.options.body, /test-only/);
 });

@@ -47,11 +47,12 @@
 
   function inferCandidate(input) {
     const text = `${input.title || ''} ${input.note || ''}`.toLowerCase();
-    let type = TYPES.includes(input.type) ? input.type : 'task';
-    if (/电影|影片|movie/.test(text)) type = 'movie';
-    else if (/剧|番|series|season/.test(text)) type = 'series';
-    else if (/书|阅读|读完|book/.test(text)) type = 'book';
-    else if (/想法|灵感|idea/.test(text)) type = 'idea';
+    const hasManualType = TYPES.includes(input.type);
+    let type = hasManualType ? input.type : 'task';
+    if (!hasManualType && /电影|影片|movie/.test(text)) type = 'movie';
+    else if (!hasManualType && /剧|番|series|season/.test(text)) type = 'series';
+    else if (!hasManualType && /书|阅读|读完|book/.test(text)) type = 'book';
+    else if (!hasManualType && /想法|灵感|idea/.test(text)) type = 'idea';
     let inferred = { sessionMode: 'flexible', minSessionMinutes: 30, inferenceConfidence: 0.35 };
     if (type === 'movie') inferred = { sessionMode: 'continuous', minSessionMinutes: 90, inferenceConfidence: 0.65 };
     else if (type === 'series') inferred = { sessionMode: 'segmentable', minSessionMinutes: 25, inferenceConfidence: 0.4 };
@@ -112,6 +113,33 @@
 
   class InferenceProvider { infer() { throw new Error('InferenceProvider.infer must be implemented'); } }
   class RuleInferenceProvider extends InferenceProvider { infer(input) { return Promise.resolve(inferCandidate(input)); } }
+  class DeepSeekInferenceProvider extends InferenceProvider {
+    constructor(apiKey, fetchImpl = fetch) { super(); this.apiKey = apiKey; this.fetchImpl = fetchImpl; }
+    async infer(input) {
+      if (!this.apiKey) throw new Error('尚未设置 DeepSeek API Key');
+      const response = await this.fetchImpl('https://api.deepseek.com/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${this.apiKey}` },
+        body: JSON.stringify({ model: 'deepseek-v4-flash', thinking: { type: 'disabled' }, response_format: { type: 'json_object' }, stream: false, messages: [
+          { role: 'system', content: '根据用户标题和备忘补充事项属性。只返回 JSON：estimatedMinutes 可省略；minSessionMinutes 为正整数；sessionMode 只能是 continuous、segmentable、flexible；energy 只能是 low、medium、high；contexts 为字符串数组；inferenceConfidence 为 0 到 1。不要改写标题、备忘和用户选择的 type。' },
+          { role: 'user', content: JSON.stringify({ title: input.title, note: input.note || '', type: input.type }) },
+        ] }),
+      });
+      if (!response.ok) throw new Error(`DeepSeek 请求失败（${response.status}）`);
+      const payload = await response.json();
+      const content = payload?.choices?.[0]?.message?.content;
+      const parsed = JSON.parse(String(content || '').replace(/^```json\s*|\s*```$/g, ''));
+      const base = inferCandidate(input);
+      const safe = {};
+      if (Number.isFinite(Number(parsed.estimatedMinutes)) && Number(parsed.estimatedMinutes) > 0) safe.estimatedMinutes = Number(parsed.estimatedMinutes);
+      if (Number.isFinite(Number(parsed.minSessionMinutes)) && Number(parsed.minSessionMinutes) > 0) safe.minSessionMinutes = Number(parsed.minSessionMinutes);
+      if (['continuous','segmentable','flexible'].includes(parsed.sessionMode)) safe.sessionMode = parsed.sessionMode;
+      if (['low','medium','high'].includes(parsed.energy)) safe.energy = parsed.energy;
+      if (Array.isArray(parsed.contexts)) safe.contexts = parsed.contexts.filter(value => typeof value === 'string').slice(0, 5);
+      if (Number.isFinite(Number(parsed.inferenceConfidence))) safe.inferenceConfidence = Math.max(0, Math.min(1, Number(parsed.inferenceConfidence)));
+      return inferCandidate({ ...base, ...safe, title: base.title, note: base.note, type: base.type, inferenceSource: 'llm' });
+    }
+  }
 
-  return { TYPES, CATEGORIES, normalizeWish, applyWishProgress, inferCandidate, migrateNote, normalizeExpense, validateImport, recommend, InferenceProvider, RuleInferenceProvider };
+  return { TYPES, CATEGORIES, normalizeWish, applyWishProgress, inferCandidate, migrateNote, normalizeExpense, validateImport, recommend, InferenceProvider, RuleInferenceProvider, DeepSeekInferenceProvider };
 });

@@ -1,19 +1,16 @@
 const Dashboard = {
   render(container) {
     const wishItems = Store.getWishItems();
-    const plans = Store.getStudyPlans();
     const events = Store.getCountdownEvents();
-    const studyEnabled = Store.getConfig().features.studyEnabled;
+    const studyEnabled = false;
+    const year = Store.today().slice(0, 4);
+    const yearlyExpenses = Store.getExpenses().filter(item => !item.deletedAt && item.occurredOn.startsWith(year));
+    const yearlyTotal = yearlyExpenses.reduce((sum, item) => sum + item.amount, 0);
+    const plannedTotal = yearlyExpenses.filter(item => item.source === 'wish').reduce((sum, item) => sum + item.amount, 0);
+    const quickTotal = yearlyTotal - plannedTotal;
 
     const activeWish = wishItems.filter(i => i.status === 'active');
     const wishReady = activeWish.filter(i => i.currentProgress >= i.price).length;
-    const totalAccumulated = wishItems.filter(i => i.status !== 'abandoned').reduce((s, i) => s + i.currentProgress, 0);
-
-    const plan = plans.length > 0 ? plans[0] : null;
-    const currentPhase = plan ? plan.phases[plan.currentPhaseIndex || 0] : null;
-    const phaseProgress = currentPhase
-      ? `${currentPhase.tasks.filter(t => t.status === 'done').length}/${currentPhase.tasks.length}`
-      : '-/-';
 
     const now = new Date();
     now.setHours(0, 0, 0, 0);
@@ -37,20 +34,20 @@ const Dashboard = {
       </div>
       <div class="stat-grid stat-enter" style="margin-bottom:16px;">
         <div class="stat-card">
-          <div class="stat-number">${activeWish.length}</div>
-          <div class="stat-label">进行中 · 清单</div>
+          <div class="stat-number">¥${yearlyTotal.toFixed(0)}</div>
+          <div class="stat-label">${year} 年随手花</div>
         </div>
         <div class="stat-card">
-          <div class="stat-number" style="color:var(--sheikah);">¥${totalAccumulated.toFixed(1)}</div>
-          <div class="stat-label">总等待进度 · 非余额</div>
+          <div class="stat-number">${yearlyExpenses.length}</div>
+          <div class="stat-label">年度记录</div>
         </div>
         <div class="stat-card">
-          <div class="stat-number">${plan ? currentPhase?.title || '-' : '-'}</div>
-          <div class="stat-label">${plan ? '当前阶段' : '暂无计划'}</div>
+          <div class="stat-number">¥${quickTotal.toFixed(0)}</div>
+          <div class="stat-label">即时型</div>
         </div>
         <div class="stat-card">
-          <div class="stat-number">${phaseProgress}</div>
-          <div class="stat-label">阶段任务</div>
+          <div class="stat-number">¥${plannedTotal.toFixed(0)}</div>
+          <div class="stat-label">计划型</div>
         </div>
       </div>
 
@@ -78,8 +75,8 @@ const Dashboard = {
         </div>
       ` : ''}
 
-      <div class="card-stagger" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-        <a href="#/wish" class="card card-link" style="text-align:center;padding:20px;">
+      <div class="card-stagger" style="display:grid;grid-template-columns:1fr;gap:8px;">
+        <a href="#/wish" class="card card-link" hidden style="text-align:center;padding:20px;">
           <svg width="22" height="22" viewBox="0 0 42 51" fill="currentColor" style="display:block;margin:0 auto;color:var(--sheikah);"><path d="M39.587 23.468H38.208V17.172C38.208 12.421 36.254 8.128 33.152 5.037C29.992 1.946 25.683 0 20.971 0C11.434 0 3.735 7.67 3.735 17.172V23.468H2.356C1.092 23.468 0 24.498 0 25.815V48.653C0 49.913 1.034 51 2.356 51H39.644C40.966 51 42 49.97 42 48.653V25.815C41.943 24.498 40.851 23.468 39.587 23.468ZM20.856 45.791C16.088 45.791 12.238 41.956 12.238 37.205C12.238 32.455 16.088 28.62 20.856 28.62C25.625 28.62 29.475 32.455 29.475 37.205C29.475 41.956 25.625 45.791 20.856 45.791ZM29.59 23.468H12.353V16.027C12.353 11.276 16.203 7.441 20.971 7.441C25.74 7.441 29.59 11.276 29.59 16.027V23.468ZM24.304 34.916C24.304 36.175 23.614 37.32 22.58 37.892V42.929H19.133V37.892C18.099 37.32 17.409 36.175 17.409 34.916C17.409 33.027 18.96 31.482 20.856 31.482C22.752 31.482 24.304 33.027 24.304 34.916Z"/></svg>
           <div style="font-size:13px;margin-top:8px;color:var(--text);">清单</div>
         </a>
@@ -87,7 +84,7 @@ const Dashboard = {
           <svg width="22" height="22" viewBox="0 0 77 45.2" fill="currentColor" style="display:block;margin:0 auto;color:var(--sheikah);"><path d="M38.512 0L32.5925 8.943H44.3963L38.512 0"/><path d="M26.7084 17.8509L32.5926 8.943L38.5122 17.8509H26.7084Z"/><path d="M38.5122 17.8509H50.3513L44.3965 8.943L38.5122 17.8509Z"/><path d="M0 2.765L2.89 11.445L23.02 14.47V16.603L4.933 18.587L8.521 25.58L23.52 19.976L24.467 21.811L13.006 30.44L17.939 33.912L26.31 24.638L27.606 25.878L23.52 35.549L28.453 36.541L30.197 27.713C31.749 27.923 34.028 27.713 33.967 25.58C33.937 24.541 33.45 23.267 31.648 22.713C23.875 20.326 25.463 10.651 27.905 6.634C24.986 8.943 24.779 10.109 23.968 11.197C22.635 10.843 0 2.765 0 2.765Z"/><path d="M77 2.765L74.11 11.445L53.978 14.47V16.603L72.067 18.587L68.479 25.58L53.48 19.976L52.533 21.811L63.994 30.44L59.061 33.912L50.69 24.638L49.394 25.878L53.48 35.549L48.547 36.541L46.803 27.713C45.251 27.923 42.972 27.713 43.033 25.58C43.063 24.541 43.55 23.267 45.352 22.713C53.125 20.326 51.537 10.651 49.095 6.634C52.014 8.943 52.221 10.109 53.032 11.197C54.365 10.843 77 2.765 77 2.765Z"/><path d="M38.512 20.604C38.459 21.656 37.049 24.251 36.679 24.638C36.382 24.948 35.974 25.58 35.146 27.713C34.318 29.845 34.66 29.946 32.944 31.195C40.002 34.425 35.974 37.702 35.974 38.456C36.858 40.68 38.512 45.171 38.512 45.171C38.512 45.171 40.164 40.68 41.047 38.456C41.047 37.702 37.02 34.425 44.078 31.195C42.362 29.946 42.704 29.845 41.876 27.713C41.048 25.58 40.64 24.948 40.343 24.638C39.973 24.251 38.565 21.656 38.512 20.604Z"/></svg>
           <div style="font-size:13px;margin-top:8px;color:var(--text);">学习</div>
         </a>` : ''}
-        <a href="#/countdown" class="card card-link" style="text-align:center;padding:20px;">
+        <a href="#/countdown" class="card card-link" hidden style="text-align:center;padding:20px;">
           <svg width="22" height="22" viewBox="0 0 51 48" fill="currentColor" style="display:block;margin:0 auto;color:var(--sheikah);"><path fill-rule="evenodd" clip-rule="evenodd" d="M0 11V4V0H4H11H15V3H36V0H40H47H51V4V11V15V22V26V33V37V44V48H47H40H36V45H15V48H11H4H0V44V37V33V26V22V15V11ZM40 44H47V37H40V44ZM11 37V44H4V37H11ZM36 37V33V26H15V33V37V41H36V37ZM40 33H47V26H40V33ZM4 33H11V26H4V33ZM4 22H11V15H4V22ZM36 22H15V15V11V7H36V11V15V22ZM40 22H47V15H40V22ZM47 4V11H40V4H47ZM4 11H11V4H4V11Z"/></svg>
           <div style="font-size:13px;margin-top:8px;color:var(--text);">倒计时</div>
         </a>
@@ -99,6 +96,7 @@ const Dashboard = {
     `;
 
     container.querySelector('#dashboard-settings-btn')?.addEventListener('click', () => this._showSettingsModal());
+    container.querySelectorAll('.card-stagger > a[href="#/wish"], .card-stagger > a[href="#/countdown"], .card-stagger > a[href="#/study"]').forEach(element => element.remove());
     container.querySelectorAll('[data-minutes]').forEach(button => button.addEventListener('click', () => {
       let minutes = button.dataset.minutes === 'custom' ? Number(prompt('现在有多少分钟？', '30')) : Number(button.dataset.minutes);
       if (!Number.isFinite(minutes) || minutes <= 0) return;
@@ -228,6 +226,12 @@ const Dashboard = {
           </div>
           <p style="font-size:11px;color:var(--text3);margin-top:6px;">建议使用深色图片，效果更佳 · 图片仅存储在本地</p>
         </div>
+        <div class="form-group" style="border-top:1px solid var(--border);padding-top:12px;">
+          <label>DeepSeek API Key（仅本次浏览器会话）</label>
+          <input id="settings-deepseek-key" type="password" autocomplete="off" placeholder="sk-..." value="">
+          <div style="display:flex;gap:8px;margin-top:8px;"><button class="btn btn-sm btn-outline" id="settings-deepseek-save">保存到本次会话</button><button class="btn btn-sm btn-outline" id="settings-deepseek-clear">清除 Key</button></div>
+          <p style="font-size:11px;color:var(--text3);margin-top:6px;">Key 不写入 localStorage、备份或代码；关闭浏览器会话后失效。前端直连时本机开发者工具仍可看到请求。</p>
+        </div>
         <div style="border-top:1px solid var(--border);padding-top:12px;margin-top:12px;">
           <button class="btn btn-outline btn-block" id="settings-export">📤 导出数据</button>
           <button class="btn btn-outline btn-block" id="settings-import" style="margin-top:8px;">📥 导入数据</button>
@@ -261,6 +265,8 @@ const Dashboard = {
       });
       input.click();
     });
+    modal.modalEl.querySelector('#settings-deepseek-save').onclick = () => { const key = modal.modalEl.querySelector('#settings-deepseek-key').value.trim(); if (!key) { Toast.show('请输入 API Key'); return; } sessionStorage.setItem('daily_deepseek_key', key); modal.modalEl.querySelector('#settings-deepseek-key').value = ''; Toast.show('Key 已保存到本次会话'); };
+    modal.modalEl.querySelector('#settings-deepseek-clear').onclick = () => { sessionStorage.removeItem('daily_deepseek_key'); modal.modalEl.querySelector('#settings-deepseek-key').value = ''; Toast.show('Key 已从本次会话清除'); };
 
     modal.modalEl.querySelector('#settings-bg-remove')?.addEventListener('click', () => {
       Store.clearBgImage();

@@ -24,11 +24,12 @@ const Note = {
     const labels = { task: '要做的事', book: '书', movie: '电影', series: '剧集', idea: '想法', media: '书影音（待确认）' };
     const modes = { continuous: '适合一次完成', segmentable: '可以分段', flexible: '随时可停' };
     const source = item.inferenceSource === 'llm' ? 'DeepSeek 标注' : item.inferenceSource === 'user' ? '手动确认' : '本地标注';
+    const metadata = item.metadata ? `${item.metadata.author ? `${this._esc(item.metadata.author)} · ` : ''}${item.metadata.year || ''}${item.metadata.source === 'openlibrary' ? ' · Open Library' : ' · TMDB'}` : '';
     const duration = item.sessionMode === 'continuous'
       ? `预计约 ${this._formatHours(item.estimatedMinutes || item.minSessionMinutes)}`
       : `最短 ${item.minSessionMinutes} 分钟`;
     const lifecycleLabels = { one_time: '一次性', ongoing: '持续型', repeatable: '可重复' };
-    return `<div class="card note-item" data-id="${item.id}"><span class="badge badge-active">${labels[item.type] || '事项'}</span><button class="badge" style="border:0;margin-left:4px;" data-lifecycle="${item.id}">${lifecycleLabels[item.lifecycle] || '一次性'}</button><div style="font-size:16px;font-weight:600;margin-top:8px;">${this._esc(item.title)}</div>${item.note ? `<p style="color:var(--text2);margin-top:4px;">${this._esc(item.note)}</p>` : ''}<p style="font-size:12px;color:var(--text2);margin-top:8px;">${modes[item.sessionMode]} · ${duration} · ${source}</p>${item.type === 'media' ? `<button class="btn btn-sm btn-outline" data-classify="${item.id}">确认是书 / 影 / 剧</button>` : ''}${item.status === 'done' || item.status === 'archived' ? '' : `<div style="display:flex;gap:8px;margin-top:10px;"><button class="btn btn-sm btn-primary" data-done="${item.id}">完成</button><button class="btn btn-sm btn-outline" data-archive="${item.id}">归档</button></div>`}</div>`;
+    return `<div class="card note-item" data-id="${item.id}"><span class="badge badge-active">${labels[item.type] || '事项'}</span><button class="badge" style="border:0;margin-left:4px;" data-lifecycle="${item.id}">${lifecycleLabels[item.lifecycle] || '一次性'}</button><div style="font-size:16px;font-weight:600;margin-top:8px;">${this._esc(item.title)}</div>${item.note ? `<p style="color:var(--text2);margin-top:4px;">${this._esc(item.note)}</p>` : ''}<p style="font-size:12px;color:var(--text2);margin-top:8px;">${modes[item.sessionMode]} · ${duration} · ${source}</p>${metadata ? `<p style="font-size:11px;color:var(--text3);margin-top:4px;">${metadata}</p>` : ''}${item.type === 'media' ? `<button class="btn btn-sm btn-outline" data-classify="${item.id}">确认是书 / 影 / 剧</button>` : ''}${item.status === 'done' || item.status === 'archived' ? '' : `<div style="display:flex;gap:8px;margin-top:10px;"><button class="btn btn-sm btn-primary" data-done="${item.id}">完成</button><button class="btn btn-sm btn-outline" data-archive="${item.id}">归档</button></div>`}</div>`;
   },
   _experienceCard(item) {
     const outcomes = { completed: '完成', partial: '部分进行', stopped: '中止' };
@@ -56,9 +57,22 @@ const Note = {
   _add() {
     const types = { task: '事', book: '书', movie: '影', series: '剧', idea: '想法' };
     const llmEnabled = sessionStorage.getItem('daily_llm_enabled') === 'true';
-    const modal = Modal.open({ title: '记一下', body: `<h2>记一下</h2><div class="form-group"><label>标题</label><input id="candidate-title" placeholder="想做、想读、想看……"></div><div class="form-group"><label>类型</label><div style="display:flex;gap:6px;flex-wrap:wrap;">${Object.entries(types).map(([type,label], index) => `<button type="button" class="btn btn-sm btn-outline choice-button" aria-pressed="${index === 0}" data-candidate-type="${type}">${label}</button>`).join('')}</div></div><details><summary style="cursor:pointer;color:var(--text2);">添加备忘（可选）</summary><textarea id="candidate-note" style="margin-top:8px;" placeholder="补充一点上下文"></textarea></details><p style="font-size:11px;color:var(--text3);margin-top:10px;">${llmEnabled ? (sessionStorage.getItem('daily_deepseek_key') ? '保存时会把本条标题、类别和备注发送给 DeepSeek 标注；失败时自动使用本地规则。' : 'LLM 已开启，但尚未在个性化中设置 Key，将使用本地规则。') : 'LLM 已关闭，使用本地规则。'}</p><div class="modal-actions"><button class="btn btn-outline" id="candidate-cancel">取消</button><button class="btn btn-primary" id="candidate-save">保存</button></div>` });
+    const modal = Modal.open({ title: '记一下', body: `<h2>记一下</h2><div class="form-group"><label>标题</label><input id="candidate-title" placeholder="想做、想读、想看……"></div><div class="form-group"><label>类型</label><div style="display:flex;gap:6px;flex-wrap:wrap;">${Object.entries(types).map(([type,label], index) => `<button type="button" class="btn btn-sm btn-outline choice-button" aria-pressed="${index === 0}" data-candidate-type="${type}">${label}</button>`).join('')}</div></div><div id="metadata-tools" hidden><button type="button" class="btn btn-sm btn-outline" id="metadata-search">查找媒体资料</button><div id="metadata-results" style="margin-top:8px;"></div></div><details><summary style="cursor:pointer;color:var(--text2);">添加备忘（可选）</summary><textarea id="candidate-note" style="margin-top:8px;" placeholder="补充一点上下文"></textarea></details><p style="font-size:11px;color:var(--text3);margin-top:10px;">${llmEnabled ? (sessionStorage.getItem('daily_deepseek_key') ? '保存时会把本条标题、类别和备注发送给 DeepSeek 标注；失败时自动使用本地规则。' : 'LLM 已开启，但尚未在个性化中设置 Key，将使用本地规则。') : 'LLM 已关闭，使用本地规则。'}</p><div class="modal-actions"><button class="btn btn-outline" id="candidate-cancel">取消</button><button class="btn btn-primary" id="candidate-save">保存</button></div>` });
     let selectedType = 'task';
-    modal.overlay.querySelectorAll('[data-candidate-type]').forEach(button => button.onclick = () => { selectedType = button.dataset.candidateType; modal.overlay.querySelectorAll('[data-candidate-type]').forEach(item => item.setAttribute('aria-pressed', String(item === button))); });
+    let selectedMetadata = null;
+    const metadataTools = modal.overlay.querySelector('#metadata-tools');
+    const metadataResults = modal.overlay.querySelector('#metadata-results');
+    modal.overlay.querySelectorAll('[data-candidate-type]').forEach(button => button.onclick = () => { selectedType = button.dataset.candidateType; selectedMetadata = null; metadataResults.innerHTML = ''; metadataTools.hidden = !['book', 'movie', 'series'].includes(selectedType); modal.overlay.querySelectorAll('[data-candidate-type]').forEach(item => item.setAttribute('aria-pressed', String(item === button))); });
+    modal.overlay.querySelector('#metadata-search').onclick = async () => {
+      const title = modal.overlay.querySelector('#candidate-title').value.trim();
+      if (!title) { Toast.show('请先填写标题'); return; }
+      metadataResults.textContent = '正在查找…';
+      try {
+        const results = await MediaMetadata.search({ type: selectedType, query: title, proxyUrl: Store.getConfig().mediaProxyUrl });
+        metadataResults.innerHTML = results.length ? results.map((item, index) => `<button type="button" class="btn btn-outline btn-block" style="margin-top:6px;text-align:left;" data-metadata-index="${index}">${this._esc(item.title)}${item.year ? `（${item.year}）` : ''}${item.author ? ` · ${this._esc(item.author)}` : ''}${item.runtimeMinutes ? ` · ${item.runtimeMinutes} 分钟` : ''}</button>`).join('') : '<p style="font-size:12px;color:var(--text2);">没有找到，可直接保存。</p>';
+        metadataResults.querySelectorAll('[data-metadata-index]').forEach(choice => choice.onclick = () => { selectedMetadata = results[Number(choice.dataset.metadataIndex)]; metadataResults.querySelectorAll('button').forEach(item => item.setAttribute('aria-pressed', String(item === choice))); Toast.show('已选择资料，保存后生效'); });
+      } catch (error) { metadataResults.innerHTML = `<p style="font-size:12px;color:var(--text2);">${this._esc(error.message)}。</p>`; }
+    };
     modal.overlay.querySelector('#candidate-cancel').onclick = modal.close;
     modal.overlay.querySelector('#candidate-save').onclick = async () => {
       const title = modal.overlay.querySelector('#candidate-title').value.trim();
@@ -75,6 +89,10 @@ const Note = {
           LlmDiagnostics.record({ action: '事项标注', status: '失败', input: { title: input.title, type: input.type }, error: error.message || '网络请求失败' });
           Toast.show(`${error.message || '网络请求失败'}，已使用本地规则`, 5000);
         }
+      }
+      if (selectedMetadata) {
+        item.metadata = selectedMetadata;
+        if (selectedMetadata.runtimeMinutes) { item.estimatedMinutes = selectedMetadata.runtimeMinutes; item.minSessionMinutes = selectedMetadata.runtimeMinutes; item.sessionMode = 'continuous'; item.durationSource = 'metadata'; }
       }
       this.items.push(item); Store.saveCandidateItems(this.items); modal.close(); this.render(document.getElementById('content'));
     };

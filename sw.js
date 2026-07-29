@@ -1,5 +1,5 @@
-const CACHE = 'daily-shell-v11';
-const PRECACHE = ['./', './index.html', './css/style.css', './js/date-utils.js', './js/domain.js', './js/app.js', './js/store.js', './js/lib/md-parser.js', './js/lib/chart.js', './js/pages/wish.js', './js/pages/study.js', './js/pages/countdown.js', './js/pages/dashboard.js', './js/pages/note.js', './js/pages/expense.js', './manifest.json', './icons/app-icon.svg'];
+const CACHE = 'daily-shell-v12';
+const PRECACHE = ['./', './index.html', './css/style.css', './js/date-utils.js', './js/domain.js', './js/media-metadata.js', './js/app.js', './js/store.js', './js/lib/md-parser.js', './js/lib/chart.js', './js/pages/wish.js', './js/pages/study.js', './js/pages/countdown.js', './js/pages/dashboard.js', './js/pages/note.js', './js/pages/expense.js', './manifest.json', './icons/app-icon.svg'];
 
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(PRECACHE)));

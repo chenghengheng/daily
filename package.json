@@ -4,7 +4,7 @@
   "description": "本地优先的低成本生活选择 PWA",
   "scripts": {
     "test": "node --test tests/*.test.js",
-    "check": "npm test && node --check js/app.js && node --check js/store.js && node --check js/domain.js && node --check js/pages/wish.js && node --check js/pages/countdown.js && node --check js/pages/dashboard.js && node --check js/pages/note.js && node --check js/pages/expense.js && node --check sw.js"
+    "check": "npm test && node --check js/app.js && node --check js/store.js && node --check js/domain.js && node --check js/media-metadata.js && node --check js/pages/wish.js && node --check js/pages/countdown.js && node --check js/pages/dashboard.js && node --check js/pages/note.js && node --check js/pages/expense.js && node --check sw.js"
   },
   "repository": {
     "type": "git",

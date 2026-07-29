@@ -171,6 +171,12 @@ const Dashboard = {
             ${llmLog ? '<button class="btn btn-sm btn-outline" id="settings-llm-log-clear">清除诊断</button>' : ''}
           </details>
         </div>
+        <div class="form-group" style="border-top:1px solid var(--border);padding-top:12px;">
+          <label>影视资料代理地址（可选）</label>
+          <input id="settings-media-proxy" type="url" placeholder="https://example.com/api/media-search" value="${this._esc(Store.getConfig().mediaProxyUrl || '')}">
+          <button class="btn btn-sm btn-outline" id="settings-media-proxy-save" style="margin-top:8px;">保存代理地址</button>
+          <p style="font-size:11px;color:var(--text3);margin-top:6px;">图书直接查询 Open Library；影视通过代理查询，前端不会保存 TMDB 密钥。未配置时仍可正常保存事项。</p>
+        </div>
         <div style="border-top:1px solid var(--border);padding-top:12px;margin-top:12px;">
           <button class="btn btn-outline btn-block" id="settings-export">📤 导出数据</button>
           <button class="btn btn-outline btn-block" id="settings-import" style="margin-top:8px;">📥 导入数据</button>
@@ -204,6 +210,7 @@ const Dashboard = {
     };
     modal.modalEl.querySelector('#settings-deepseek-clear').onclick = () => { sessionStorage.removeItem('daily_deepseek_key'); modal.modalEl.querySelector('#settings-deepseek-key').value = ''; updateKeyStatus('尚未配置 Key'); Toast.show('Key 已从本次会话清除'); };
     modal.modalEl.querySelector('#settings-llm-log-clear')?.addEventListener('click', () => { LlmDiagnostics.clear(); modal.close(); this._showSettingsModal(); });
+    modal.modalEl.querySelector('#settings-media-proxy-save').onclick = () => { const mediaProxyUrl = modal.modalEl.querySelector('#settings-media-proxy').value.trim(); if (mediaProxyUrl) { try { new URL(mediaProxyUrl); } catch (_) { Toast.show('请输入完整的 HTTPS 地址'); return; } if (!mediaProxyUrl.startsWith('https://')) { Toast.show('代理地址必须使用 HTTPS'); return; } } Store.updateConfig({ mediaProxyUrl }); Toast.show(mediaProxyUrl ? '影视资料代理已保存' : '影视资料代理已清除'); };
 
     modal.modalEl.querySelector('#settings-export')?.addEventListener('click', () => {
       const data = Store.exportAll();

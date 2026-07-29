@@ -14,26 +14,10 @@ const Wish = {
   _applyAutoProgress() {
     const today = Store.today();
     let changed = false;
-    this.items.forEach(item => {
-      if (item.status !== 'active') return;
-      if (item.currentProgress >= item.price) return;
-      const lastDate = item.updatedAt ? item.updatedAt.slice(0, 10) : item.createdAt.slice(0, 10);
-      if (lastDate >= today) return;
-      const daysDiff = Math.floor((new Date(today + 'T00:00:00') - new Date(lastDate + 'T00:00:00')) / 86400000);
-      if (daysDiff <= 0) return;
-      const added = Math.min(item.price - item.currentProgress, daysDiff * item.dailyProgress);
-      if (added <= 0) return;
-      item.currentProgress += added;
-      if (!item.progressLog) item.progressLog = [];
-      for (let i = 1; i <= daysDiff; i++) {
-        const d = new Date(lastDate + 'T00:00:00');
-        d.setDate(d.getDate() + i);
-        const ds = d.toISOString().slice(0, 10);
-        if (ds > today) break;
-        item.progressLog.push({ date: ds, amount: item.dailyProgress });
-      }
-      item.updatedAt = new Date().toISOString();
-      changed = true;
+    this.items = this.items.map(item => {
+      const result = DailyDomain.applyWishProgress(item, today);
+      changed ||= result.changed;
+      return result.item;
     });
     if (changed) Store.saveWishItems(this.items);
   },
@@ -81,7 +65,7 @@ const Wish = {
 
       ${active.length > 0 || done.filter(i => i.status === 'purchased').length > 0 ? `
         <div style="text-align:center;padding:0 8px 8px;font-size:12px;color:var(--text3);margin-bottom:4px;">
-          已累积 <span style="color:var(--gold);font-weight:600;">¥${this._calcAccumulated().toFixed(1)}</span>
+          总等待进度 <span style="color:var(--gold);font-weight:600;">¥${this._calcAccumulated().toFixed(1)}</span>（不是余额或存款）
         </div>
       ` : ''}
 
@@ -153,14 +137,17 @@ const Wish = {
             <button class="btn btn-sm btn-outline wish-delete-btn" style="margin-left:auto;color:var(--text3);font-size:11px;">删除</button>
           </div>
         ` : item.status === 'active' ? `
-          <div style="display:flex;gap:6px;margin-top:8px;justify-content:flex-end;">
+          <div style="display:flex;gap:6px;margin-top:8px;justify-content:flex-end;flex-wrap:wrap;">
+            <button class="btn btn-sm btn-primary wish-confirm-btn">标记已购买</button>
             <button class="btn btn-sm btn-outline wish-seal-btn" style="color:var(--text3);font-size:11px;">${item.sealed !== false ? '解除封印' : '封印'}</button>
             <button class="btn btn-sm btn-outline wish-delete-btn" style="color:var(--text3);font-size:11px;">删除</button>
           </div>
         ` : `
           <div style="display:flex;gap:6px;margin-top:8px;justify-content:flex-end;">
             <span style="font-size:11px;color:var(--text2);margin-right:auto;">
-              最终进度：${item.currentProgress.toFixed(1)} / ${item.price} · ${(item.progressLog || item.clickLog || []).length} 天
+              ${item.status === 'purchased' ? `实际 ¥${Number(item.actualPrice ?? item.price).toFixed(2)} · ${item.purchaseTiming === 'early' ? `等待 ${Math.max(0, DateUtils.daysBetween(Store.today(new Date(item.createdAt)), Store.today(new Date(item.purchasedAt))))} 天后购买` : '达到等待进度后购买'}<br>` : ''}
+              ${item.purchaseReason ? `购买备注：${this._esc(item.purchaseReason)}<br>` : ''}
+              最终等待进度：${item.currentProgress.toFixed(1)} / ${item.price} · ${(item.progressLog || item.clickLog || []).length} 天
             </span>
             <button class="btn btn-sm btn-outline wish-delete-btn" style="color:var(--text3);font-size:11px;">删除</button>
           </div>
@@ -274,26 +261,25 @@ const Wish = {
     overlay.innerHTML = `
       <div class="modal">
         <h2>确认购买</h2>
-        <p style="font-size:14px;">真的买 <strong>${this._esc(item.name)}</strong> 吗？</p>
-        <p style="font-size:12px;color:var(--text2);margin-top:8px;">等待期已到，由你决定。</p>
+        <p style="font-size:14px;">记录购买 <strong>${this._esc(item.name)}</strong></p>
+        <div class="form-group" style="margin-top:12px;"><label>实际价格</label><input id="purchase-price" type="number" min="0" step="0.01" value="${item.price}"></div>
+        <div class="form-group"><label>购买原因（可选）</label><input id="purchase-reason" placeholder="留下一句当时的考虑"></div>
         <div class="modal-actions">
           <button class="btn btn-outline" id="purchase-cancel">再想想</button>
           <button class="btn btn-primary" id="purchase-yes">确认购买</button>
-          <button class="btn btn-danger" id="purchase-no">还是算了</button>
         </div>
       </div>
     `;
     document.body.appendChild(overlay);
     overlay.querySelector('#purchase-cancel').addEventListener('click', () => overlay.remove());
     overlay.querySelector('#purchase-yes').addEventListener('click', () => {
-      item.status = 'purchased';
-      Store.saveWishItems(this.items);
-      overlay.remove();
-      this.render(document.getElementById('content'));
-    });
-    overlay.querySelector('#purchase-no').addEventListener('click', () => {
-      item.status = 'abandoned';
-      Store.saveWishItems(this.items);
+      const actualPrice = Number(overlay.querySelector('#purchase-price').value);
+      if (!Number.isFinite(actualPrice) || actualPrice < 0) { this._toast('请输入有效实际价格'); return; }
+      const result = Store.purchaseWish(item.id, {
+        actualPrice,
+        reason: overlay.querySelector('#purchase-reason').value,
+      });
+      if (!result.ok) { this._toast(result.error || '购买记录保存失败'); return; }
       overlay.remove();
       this.render(document.getElementById('content'));
     });
@@ -315,7 +301,7 @@ const Wish = {
   },
 
   _calcAccumulated() {
-    return this.items.filter(i => i.status !== 'abandoned').reduce((s, i) => s + i.currentProgress, 0);
+    return this.items.filter(i => i.status === 'active').reduce((s, i) => s + i.currentProgress, 0);
   },
 
   _deleteItem(id) {
@@ -378,18 +364,7 @@ const Wish = {
       const daily = parseFloat(overlay.querySelector('#add-daily').value) || 1;
       if (!name) { this._toast('请输入名称'); return; }
       if (!price || price <= 0) { this._toast('请输入有效价格'); return; }
-      this.items.push({
-        id: Store.genId(),
-        name,
-        price,
-        dailyProgress: daily,
-        currentProgress: 0,
-        status: 'active',
-        sealed: true,
-        progressLog: [],
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      });
+      this.items.push(DailyDomain.createWish({ id: Store.genId(), name, price, dailyProgress: daily, today: Store.today() }));
       Store.saveWishItems(this.items);
       overlay.remove();
       this.render(document.getElementById('content'));
@@ -401,17 +376,13 @@ const Wish = {
     const dateMap = {};
     this.items.forEach(item => {
       const logs = item.progressLog || item.clickLog || [];
-      logs.forEach(log => {
+      [...logs, ...(item.actionLog || [])].forEach(log => {
         if (!dateMap[log.date]) dateMap[log.date] = [];
-        dateMap[log.date].push({ name: item.name, reason: log.reason || null });
+        dateMap[log.date].push({ name: item.name, reason: log.reason || null, amount: log.amount });
       });
     });
 
     const dates = Object.keys(dateMap);
-    if (dates.length === 0) {
-      this._toast('暂无操作日志');
-      return;
-    }
 
     const now = new Date();
     let viewYear = now.getFullYear();
@@ -482,6 +453,7 @@ const Wish = {
           ${entries.map(e => `
             <div class="cal-detail__row">
               <span class="cal-detail__name">${this._esc(e.name)}</span>
+              <span class="cal-detail__reason">${this._esc(e.reason || (Number.isFinite(Number(e.amount)) ? `等待进度 +${Number(e.amount).toFixed(1)}` : '操作记录'))}</span>
             </div>
           `).join('')}
         </div>

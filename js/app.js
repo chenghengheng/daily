@@ -26,9 +26,24 @@ const Toast = {
   },
 };
 
+const LlmDiagnostics = {
+  _key: 'daily_llm_last_diagnostic',
+  record(entry) {
+    const value = { at: new Date().toISOString(), ...entry };
+    sessionStorage.setItem(this._key, JSON.stringify(value));
+    return value;
+  },
+  latest() {
+    try { return JSON.parse(sessionStorage.getItem(this._key) || 'null'); }
+    catch (_) { return null; }
+  },
+  clear() { sessionStorage.removeItem(this._key); },
+};
+
 /** Modal helper: creates a modal with animation, keyboard & focus support */
 const Modal = {
   open(config) {
+    const previousFocus = document.activeElement;
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
     overlay.innerHTML = `<div class="modal" role="dialog" aria-modal="true" aria-label="${config.title || ''}">${config.body}</div>`;
@@ -42,12 +57,10 @@ const Modal = {
       closed = true;
       modalEl.classList.add('closing');
       overlay.classList.add('closing');
+      document.removeEventListener('keydown', onKey);
       setTimeout(() => overlay.remove(), 150);
       config.onClose?.();
-      // restore focus
-      if (document.activeElement && document.activeElement !== document.body) {
-        document.activeElement.blur();
-      }
+      setTimeout(() => previousFocus?.focus?.(), 160);
     };
 
     // Escape to close
@@ -90,53 +103,31 @@ const App = {
   currentPage: '',
 
   init() {
-    this._applyBgImage();
+    Store.onError(message => Toast.show(message, 5000));
+    Store.clearObsoleteData();
+    document.getElementById('study-nav').hidden = !Store.getConfig().features.studyEnabled;
+    const dueReminders = Store.getCountdownEvents().filter(event => event.type === 'reminder' && event.date <= Store.today());
+    if (dueReminders.length) Toast.show(`${dueReminders.length} 个提醒已到期`, 5000);
     Countdown.cleanupExpiredAuto();  // remove expired imported countdown events
     window.addEventListener('hashchange', () => this.route());
     this.route();
-  },
-
-  _applyBgImage() {
-    const bg = Store.getBgImage();
-    if (bg) {
-      document.body.classList.add('has-bg');
-      document.body.style.backgroundImage = `url(${bg})`;
-      this._detectBgLightness(bg);
-    }
-  },
-
-  _detectBgLightness(dataUrl) {
-    const img = new Image();
-    img.onload = () => {
-      const c = document.createElement('canvas');
-      c.width = 50; c.height = 50;
-      const ctx = c.getContext('2d');
-      ctx.drawImage(img, 0, 0, 50, 50);
-      const d = ctx.getImageData(0, 0, 50, 50).data;
-      let sum = 0;
-      for (let i = 0; i < d.length; i += 4) {
-        sum += 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
-      }
-      const avg = sum / (d.length / 4);
-      document.body.classList.toggle('bg-light', avg > 180);
-    };
-    img.src = dataUrl;
   },
 
   route() {
     const hash = location.hash.slice(1) || '/';
     let page = 'dashboard';
     if (hash.startsWith('/wish')) page = 'wish';
-    else if (hash.startsWith('/study')) page = 'study';
+    else if (hash.startsWith('/study') && Store.getConfig().features.studyEnabled) page = 'study';
     else if (hash.startsWith('/countdown')) page = 'countdown';
     else if (hash.startsWith('/note')) page = 'note';
+    else if (hash.startsWith('/expense')) page = 'expense';
 
     this.currentPage = page;
     document.querySelectorAll('.nav-item').forEach(el => {
       el.classList.toggle('active', el.dataset.page === page);
     });
 
-    const titles = { dashboard: '仪表盘', wish: '清单', study: '学习', countdown: '倒计时', note: '随手记' };
+    const titles = { dashboard: '现在', wish: '清单', study: '学习', countdown: '倒计时', note: '候选事项', expense: '随手花' };
     document.getElementById('page-title').textContent = titles[page] || 'Daily';
 
     const container = document.getElementById('content');
@@ -148,10 +139,30 @@ const App = {
       case 'study': Study.render(container); break;
       case 'countdown': Countdown.render(container); break;
       case 'note': Note.render(container); break;
+      case 'expense': Expense.render(container); break;
     }
 
     animatePageEnter(container);
   },
 };
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (sessionStorage.getItem('daily_sw_reloading')) return;
+    sessionStorage.setItem('daily_sw_reloading', '1');
+    location.reload();
+  });
+  navigator.serviceWorker.ready.then(registration => {
+    registration.addEventListener('updatefound', () => {
+      const worker = registration.installing;
+      worker?.addEventListener('statechange', () => {
+        if (worker.state !== 'installed' || !navigator.serviceWorker.controller) return;
+        const modal = Modal.open({ title: '发现新版本', body: '<h2>发现新版本</h2><p>刷新后使用最新版本，本地数据不会被清除。</p><div class="modal-actions"><button class="btn btn-outline" id="update-later">稍后</button><button class="btn btn-primary" id="update-now">刷新</button></div>' });
+        modal.overlay.querySelector('#update-later').onclick = modal.close;
+        modal.overlay.querySelector('#update-now').onclick = () => registration.waiting?.postMessage({ type: 'SKIP_WAITING' });
+      });
+    });
+  });
+}
 
 document.addEventListener('DOMContentLoaded', () => App.init());

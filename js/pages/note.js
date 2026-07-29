@@ -1,235 +1,118 @@
-const NOTE_TAGS = {
-  task:  { label: '任务', cls: 'note-tag--task' },
-  media: { label: '书影', cls: 'note-tag--media' },
-  idea:  { label: '念头', cls: 'note-tag--idea' },
-};
-
-const NOTE_ORDER = ['task', 'media', 'idea'];
-
 const Note = {
   items: [],
-
+  experienceFilter: 'all',
   render(container) {
-    this.items = Store.getNoteItems();
-    container.innerHTML = this._view();
-    this._bind(container);
+    this.items = Store.getCandidateItems();
+    const active = this.items.filter(item => ['active', 'in_progress', 'snoozed'].includes(item.status));
+    const archived = this.items.filter(item => ['done', 'archived'].includes(item.status));
+    const experiences = Store.getExperiences().slice().reverse().filter(item => this.experienceFilter === 'all' || item.outcome === this.experienceFilter);
+    const llmEnabled = sessionStorage.getItem('daily_llm_enabled') === 'true';
+    container.innerHTML = `
+      <div style="display:flex;gap:8px;margin-bottom:16px;align-items:center;"><button class="btn btn-primary" id="note-add-btn">+ 记一下</button><button class="btn btn-outline choice-button" id="note-llm-toggle" aria-pressed="${llmEnabled}">LLM ${llmEnabled ? '已开启' : '已关闭'}</button></div>
+      ${active.length ? `<div class="card-stagger">${active.map(item => this._card(item)).join('')}</div>` : '<div class="empty-state"><p>还没有候选事项</p><p>只写标题即可，其他信息稍后再补。</p></div>'}
+      ${archived.length ? `<details><summary>已完成或归档（${archived.length}）</summary>${archived.map(item => this._card(item)).join('')}</details>` : ''}
+      <details style="margin-top:12px;"><summary>经历过（${Store.getExperiences().length}）</summary><div style="display:flex;gap:6px;margin:10px 0;">${[['all','全部'],['completed','完成'],['partial','部分进行']].map(([key,label]) => `<button class="btn btn-sm btn-outline" data-experience-filter="${key}" aria-pressed="${this.experienceFilter === key}">${label}</button>`).join('')}</div>${experiences.length ? experiences.map(item => this._experienceCard(item)).join('') : '<p style="font-size:12px;color:var(--text2);">还没有符合条件的经历</p>'}</details>`;
+    container.querySelector('#note-add-btn').onclick = () => this._add();
+    container.querySelector('#note-llm-toggle').onclick = () => { const next = !(sessionStorage.getItem('daily_llm_enabled') === 'true'); sessionStorage.setItem('daily_llm_enabled', String(next)); Toast.show(next ? 'LLM 标注已开启' : 'LLM 标注已关闭'); this.render(container); };
+    container.querySelectorAll('[data-done]').forEach(button => button.onclick = () => this._complete(button.dataset.done));
+    container.querySelectorAll('[data-archive]').forEach(button => button.onclick = () => this._update(button.dataset.archive, 'archived'));
+    container.querySelectorAll('[data-classify]').forEach(button => button.onclick = () => this._classify(button.dataset.classify));
+    container.querySelectorAll('[data-lifecycle]').forEach(button => button.onclick = () => this._cycleLifecycle(button.dataset.lifecycle));
+    container.querySelectorAll('[data-experience-filter]').forEach(button => button.onclick = () => { this.experienceFilter = button.dataset.experienceFilter; this.render(container); });
   },
-
-  _view() {
-    const active = this.items.filter(i => i.status === 'active');
-    const done = this.items.filter(i => i.status === 'done');
-
-    return `
-      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;">
-        <button class="btn btn-primary" id="note-add-btn">+ 新记录</button>
-      </div>
-      ${active.length === 0 && done.length === 0 ? `
-        <div class="empty-state">
-          <p>还没有记录</p>
-          <p style="font-size:12px;margin-top:8px;">记下想做的事、想看的书、一闪而过的念头</p>
-        </div>
-      ` : ''}
-      ${NOTE_ORDER.map(tag => {
-        const items = active.filter(i => i.tag === tag);
-        if (items.length === 0) return '';
-        const t = NOTE_TAGS[tag];
-        return `
-          <div style="margin-bottom:14px;">
-            <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">
-              <span class="note-tag ${t.cls}" style="font-size:11px;">${t.label}</span>
-              <span style="font-size:13px;font-weight:600;color:var(--text);">${items.length}</span>
-            </div>
-            <div class="card-stagger">${items.map(i => this._itemCard(i)).join('')}</div>
-          </div>
-        `;
-      }).join('')}
-      ${done.length > 0 ? `
-        <details style="margin-top:8px;" id="note-done-details">
-          <summary style="cursor:pointer;font-size:13px;color:var(--text2);padding:8px 0;user-select:none;">
-            已完成（${done.length}）
-          </summary>
-          <div style="margin-top:4px;">${done.map(i => this._itemCard(i)).join('')}</div>
-        </details>
-      ` : ''}
-    `;
+  _card(item) {
+    const labels = { task: '要做的事', book: '书', movie: '电影', series: '剧集', idea: '想法', media: '书影音（待确认）' };
+    const modes = { continuous: '适合一次完成', segmentable: '可以分段', flexible: '随时可停' };
+    const source = item.inferenceSource === 'llm' ? 'DeepSeek 标注' : item.inferenceSource === 'user' ? '手动确认' : '本地标注';
+    const metadata = item.metadata ? `${item.metadata.author ? `${this._esc(item.metadata.author)} · ` : ''}${item.metadata.year || ''}${item.metadata.source === 'openlibrary' ? ' · Open Library' : ' · TMDB'}` : '';
+    const duration = item.sessionMode === 'continuous'
+      ? `预计约 ${this._formatHours(item.estimatedMinutes || item.minSessionMinutes)}`
+      : `最短 ${item.minSessionMinutes} 分钟`;
+    const lifecycleLabels = { one_time: '一次性', ongoing: '持续型', repeatable: '可重复' };
+    return `<div class="card note-item" data-id="${item.id}"><span class="badge badge-active">${labels[item.type] || '事项'}</span><button class="badge" style="border:0;margin-left:4px;" data-lifecycle="${item.id}">${lifecycleLabels[item.lifecycle] || '一次性'}</button><div style="font-size:16px;font-weight:600;margin-top:8px;">${this._esc(item.title)}</div>${item.note ? `<p style="color:var(--text2);margin-top:4px;">${this._esc(item.note)}</p>` : ''}<p style="font-size:12px;color:var(--text2);margin-top:8px;">${modes[item.sessionMode]} · ${duration} · ${source}</p>${metadata ? `<p style="font-size:11px;color:var(--text3);margin-top:4px;">${metadata}</p>` : ''}${item.type === 'media' ? `<button class="btn btn-sm btn-outline" data-classify="${item.id}">确认是书 / 影 / 剧</button>` : ''}${item.status === 'done' || item.status === 'archived' ? '' : `<div style="display:flex;gap:8px;margin-top:10px;"><button class="btn btn-sm btn-primary" data-done="${item.id}">完成</button><button class="btn btn-sm btn-outline" data-archive="${item.id}">归档</button></div>`}</div>`;
   },
-
-  _itemCard(item) {
-    const t = NOTE_TAGS[item.tag];
-    const done = item.status === 'done';
-    return `
-      <div class="card note-item ${done ? 'note-item--done' : ''}" data-id="${item.id}">
-        <div style="display:flex;justify-content:space-between;align-items:start;gap:8px;">
-          <div style="flex:1;min-width:0;">
-            <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
-              <span class="note-tag ${t.cls}">${t.label}</span>
-            </div>
-            <div style="font-size:15px;font-weight:600;word-break:break-word;">${this._esc(item.title)}</div>
-            ${item.note ? `<div style="font-size:13px;color:var(--text2);margin-top:3px;line-height:1.5;word-break:break-word;">${this._esc(item.note)}</div>` : ''}
-            ${done && item.review ? `
-              <div style="margin-top:6px;padding:6px 10px;border-radius:var(--radius-xs);background:var(--surface2);font-size:12px;color:var(--text);line-height:1.5;border:1px solid var(--border);">
-                <span style="color:var(--text3);font-weight:600;">✎ 感想</span><br>${this._esc(item.review)}
-              </div>
-            ` : ''}
-            ${done && item.doneAt ? `
-              <div style="font-size:11px;color:var(--text3);margin-top:4px;">✓ ${item.doneAt}</div>
-            ` : ''}
-          </div>
-        </div>
-        <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;">
-          ${done ? `
-            <button class="btn btn-sm btn-outline note-delete-btn" style="margin-left:auto;">删除</button>
-          ` : `
-            <button class="btn btn-sm btn-primary note-done-btn">✓ 完成</button>
-            <button class="btn btn-sm btn-outline note-delete-btn" style="margin-left:auto;">删除</button>
-          `}
-        </div>
-      </div>
-    `;
+  _experienceCard(item) {
+    const outcomes = { completed: '完成', partial: '部分进行', stopped: '中止' };
+    return `<div class="card" style="padding:12px;"><div style="display:flex;justify-content:space-between;gap:8px;"><strong>${this._esc(item.title)}</strong><span class="badge">${outcomes[item.outcome] || item.outcome}</span></div><p style="font-size:12px;color:var(--text2);margin-top:5px;">${item.occurredOn} · 实际 ${item.actualMinutes} 分钟</p>${item.note ? `<p style="font-size:12px;margin-top:4px;">${this._esc(item.note)}</p>` : ''}</div>`;
   },
-
-  _bind(container) {
-    container.querySelector('#note-add-btn')?.addEventListener('click', () => this._showAddModal());
-    container.querySelectorAll('.note-done-btn').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        const id = e.target.closest('.note-item').dataset.id;
-        this._markDone(id);
-      });
-    });
-    container.querySelectorAll('.note-delete-btn').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        const id = e.target.closest('.note-item').dataset.id;
-        this._deleteItem(id);
-      });
-    });
+  _cycleLifecycle(id) {
+    const item = this.items.find(value => value.id === id); if (!item) return;
+    const values = ['one_time', 'ongoing', 'repeatable'];
+    item.lifecycle = values[(values.indexOf(item.lifecycle) + 1) % values.length]; item.updatedAt = new Date().toISOString();
+    Store.saveCandidateItems(this.items); this.render(document.getElementById('content'));
   },
-
-  _showAddModal() {
-    const overlay = document.createElement('div');
-    overlay.className = 'modal-overlay';
-    overlay.innerHTML = `
-      <div class="modal">
-        <h2>新记录</h2>
-        <div class="form-group">
-          <label>标题</label>
-          <input id="note-title" placeholder="想做什么？想看什么？" autofocus>
-        </div>
-        <div class="form-group">
-          <label>备注（可选）</label>
-          <textarea id="note-note" placeholder="补充信息..." rows="2"></textarea>
-        </div>
-        <div class="form-group">
-          <label>分类</label>
-          <div style="display:flex;gap:8px;" id="note-tag-picker">
-            ${NOTE_ORDER.map(tag => {
-              const t = NOTE_TAGS[tag];
-              return `<button class="btn btn-sm btn-outline note-tag-opt" data-tag="${tag}">${t.label}</button>`;
-            }).join('')}
-          </div>
-        </div>
-        <div class="modal-actions">
-          <button class="btn btn-outline" id="note-add-cancel">取消</button>
-          <button class="btn btn-primary" id="note-add-confirm" disabled>添加</button>
-        </div>
-      </div>
-    `;
-    document.body.appendChild(overlay);
-
-    let selectedTag = null;
-
-    overlay.querySelectorAll('.note-tag-opt').forEach(btn => {
-      btn.addEventListener('click', () => {
-        overlay.querySelectorAll('.note-tag-opt').forEach(b => b.classList.remove('btn-primary'));
-        overlay.querySelectorAll('.note-tag-opt').forEach(b => b.classList.remove('btn-outline'));
-        btn.classList.add('btn-primary');
-        selectedTag = btn.dataset.tag;
-        const title = overlay.querySelector('#note-title').value.trim();
-        overlay.querySelector('#note-add-confirm').disabled = !(title && selectedTag);
-      });
-    });
-
-    overlay.querySelector('#note-title').addEventListener('input', () => {
-      const title = overlay.querySelector('#note-title').value.trim();
-      overlay.querySelector('#note-add-confirm').disabled = !(title && selectedTag);
-    });
-
-    overlay.querySelector('#note-add-cancel').addEventListener('click', () => overlay.remove());
-    overlay.querySelector('#note-add-confirm').addEventListener('click', () => {
-      const title = overlay.querySelector('#note-title').value.trim();
-      const note = overlay.querySelector('#note-note').value.trim();
-      if (!title || !selectedTag) { this._toast('请填写标题并选择分类'); return; }
-      this.items.push({
-        id: Store.genId(),
-        title,
-        note,
-        tag: selectedTag,
-        status: 'active',
-        review: '',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        doneAt: null,
-      });
-      Store.saveNoteItems(this.items);
-      overlay.remove();
-      this.render(document.getElementById('content'));
-    });
-  },
-
-  _markDone(id) {
-    const item = this.items.find(i => i.id === id);
+  _classify(id) {
+    const item = this.items.find(value => value.id === id);
     if (!item) return;
-
-    const overlay = document.createElement('div');
-    overlay.className = 'modal-overlay';
-    overlay.innerHTML = `
-      <div class="modal">
-        <h2>✓ ${this._esc(item.title)}</h2>
-        <p style="font-size:13px;color:var(--text2);margin-bottom:12px;">看完/做完了？有什么想记下来的吗（可选）</p>
-        <div class="form-group">
-          <textarea id="note-review" placeholder="观后感、完成感想..." rows="3"></textarea>
-        </div>
-        <div class="modal-actions">
-          <button class="btn btn-outline" id="note-done-skip">跳过</button>
-          <button class="btn btn-primary" id="note-done-confirm">保存感想</button>
-        </div>
-      </div>
-    `;
-    document.body.appendChild(overlay);
-
-    overlay.querySelector('#note-done-skip').addEventListener('click', () => {
-      item.status = 'done';
-      item.review = '';
-      item.doneAt = Store.today();
-      item.updatedAt = new Date().toISOString();
-      Store.saveNoteItems(this.items);
-      overlay.remove();
-      this.render(document.getElementById('content'));
-    });
-    overlay.querySelector('#note-done-confirm').addEventListener('click', () => {
-      const review = overlay.querySelector('#note-review').value.trim();
-      item.status = 'done';
-      item.review = review;
-      item.doneAt = Store.today();
-      item.updatedAt = new Date().toISOString();
-      Store.saveNoteItems(this.items);
-      overlay.remove();
+    const labels = { book: '书', movie: '影', series: '剧' };
+    const modal = Modal.open({ title: '确认类型', body: `<p style="color:var(--text2);">旧数据无法可靠判断是影片还是剧集，请确认一次。</p><div style="display:flex;gap:8px;">${Object.entries(labels).map(([type, label]) => `<button class="btn btn-outline" data-type="${type}">${label}</button>`).join('')}</div>` });
+    modal.overlay.querySelectorAll('[data-type]').forEach(button => button.onclick = () => {
+      const updated = DailyDomain.inferCandidate({ ...item, type: button.dataset.type, inferenceSource: 'user', updatedAt: new Date().toISOString() });
+      this.items = this.items.map(value => value.id === id ? updated : value);
+      Store.saveCandidateItems(this.items);
+      modal.close();
       this.render(document.getElementById('content'));
     });
   },
-
-  _deleteItem(id) {
-    if (!confirm('确定删除这条记录吗？')) return;
-    this.items = this.items.filter(i => i.id !== id);
-    Store.saveNoteItems(this.items);
+  _add() {
+    const types = { task: '事', book: '书', movie: '影', series: '剧', idea: '想法' };
+    const llmEnabled = sessionStorage.getItem('daily_llm_enabled') === 'true';
+    const modal = Modal.open({ title: '记一下', body: `<h2>记一下</h2><div class="form-group"><label>标题</label><input id="candidate-title" placeholder="想做、想读、想看……"></div><div class="form-group"><label>类型</label><div style="display:flex;gap:6px;flex-wrap:wrap;">${Object.entries(types).map(([type,label], index) => `<button type="button" class="btn btn-sm btn-outline choice-button" aria-pressed="${index === 0}" data-candidate-type="${type}">${label}</button>`).join('')}</div></div><div id="metadata-tools" hidden><button type="button" class="btn btn-sm btn-outline" id="metadata-search">查找媒体资料</button><div id="metadata-results" style="margin-top:8px;"></div></div><details><summary style="cursor:pointer;color:var(--text2);">添加备忘（可选）</summary><textarea id="candidate-note" style="margin-top:8px;" placeholder="补充一点上下文"></textarea></details><p style="font-size:11px;color:var(--text3);margin-top:10px;">${llmEnabled ? (sessionStorage.getItem('daily_deepseek_key') ? '保存时会把本条标题、类别和备注发送给 DeepSeek 标注；失败时自动使用本地规则。' : 'LLM 已开启，但尚未在个性化中设置 Key，将使用本地规则。') : 'LLM 已关闭，使用本地规则。'}</p><div class="modal-actions"><button class="btn btn-outline" id="candidate-cancel">取消</button><button class="btn btn-primary" id="candidate-save">保存</button></div>` });
+    let selectedType = 'task';
+    let selectedMetadata = null;
+    const metadataTools = modal.overlay.querySelector('#metadata-tools');
+    const metadataResults = modal.overlay.querySelector('#metadata-results');
+    modal.overlay.querySelectorAll('[data-candidate-type]').forEach(button => button.onclick = () => { selectedType = button.dataset.candidateType; selectedMetadata = null; metadataResults.innerHTML = ''; metadataTools.hidden = !['book', 'movie', 'series'].includes(selectedType); modal.overlay.querySelectorAll('[data-candidate-type]').forEach(item => item.setAttribute('aria-pressed', String(item === button))); });
+    modal.overlay.querySelector('#metadata-search').onclick = async () => {
+      const title = modal.overlay.querySelector('#candidate-title').value.trim();
+      if (!title) { Toast.show('请先填写标题'); return; }
+      metadataResults.textContent = '正在查找…';
+      try {
+        const results = await MediaMetadata.search({ type: selectedType, query: title, proxyUrl: Store.getConfig().mediaProxyUrl });
+        metadataResults.innerHTML = results.length ? results.map((item, index) => `<button type="button" class="btn btn-outline btn-block" style="margin-top:6px;text-align:left;" data-metadata-index="${index}">${this._esc(item.title)}${item.year ? `（${item.year}）` : ''}${item.author ? ` · ${this._esc(item.author)}` : ''}${item.runtimeMinutes ? ` · ${item.runtimeMinutes} 分钟` : ''}</button>`).join('') : '<p style="font-size:12px;color:var(--text2);">没有找到，可直接保存。</p>';
+        metadataResults.querySelectorAll('[data-metadata-index]').forEach(choice => choice.onclick = () => { selectedMetadata = results[Number(choice.dataset.metadataIndex)]; metadataResults.querySelectorAll('button').forEach(item => item.setAttribute('aria-pressed', String(item === choice))); Toast.show('已选择资料，保存后生效'); });
+      } catch (error) { metadataResults.innerHTML = `<p style="font-size:12px;color:var(--text2);">${this._esc(error.message)}。</p>`; }
+    };
+    modal.overlay.querySelector('#candidate-cancel').onclick = modal.close;
+    modal.overlay.querySelector('#candidate-save').onclick = async () => {
+      const title = modal.overlay.querySelector('#candidate-title').value.trim();
+      if (!title) { Toast.show('标题不能为空'); return; }
+      const input = { id: Store.genId(), title, note: modal.overlay.querySelector('#candidate-note').value.trim(), type: selectedType };
+      let item = DailyDomain.inferCandidate(input);
+      const apiKey = sessionStorage.getItem('daily_deepseek_key');
+      if (llmEnabled && apiKey) {
+        try {
+          item = await new DailyDomain.DeepSeekInferenceProvider(apiKey).infer(input);
+          LlmDiagnostics.record({ action: '事项标注', status: '成功', input: { title: input.title, type: input.type }, output: { estimatedMinutes: item.estimatedMinutes, minSessionMinutes: item.minSessionMinutes, sessionMode: item.sessionMode, inferenceConfidence: item.inferenceConfidence } });
+          Toast.show('DeepSeek 标注成功');
+        } catch (error) {
+          LlmDiagnostics.record({ action: '事项标注', status: '失败', input: { title: input.title, type: input.type }, error: error.message || '网络请求失败' });
+          Toast.show(`${error.message || '网络请求失败'}，已使用本地规则`, 5000);
+        }
+      }
+      if (selectedMetadata) {
+        item.metadata = selectedMetadata;
+        if (selectedMetadata.runtimeMinutes) { item.estimatedMinutes = selectedMetadata.runtimeMinutes; item.minSessionMinutes = selectedMetadata.runtimeMinutes; item.sessionMode = 'continuous'; item.durationSource = 'metadata'; }
+      }
+      this.items.push(item); Store.saveCandidateItems(this.items); modal.close(); this.render(document.getElementById('content'));
+    };
+  },
+  _complete(id) {
+    const item = this.items.find(value => value.id === id); if (!item) return;
+    const suggested = item.estimatedMinutes || item.minSessionMinutes || 30;
+    const actualMinutes = Number(prompt('这次大约投入了多少分钟？', String(suggested)));
+    if (!Number.isFinite(actualMinutes) || actualMinutes <= 0) return;
+    const result = Store.recordExperience(id, { outcome: 'completed', plannedMinutes: suggested, actualMinutes });
+    if (!result.ok) { Toast.show(result.error || '经历保存失败'); return; }
+    Store.addRecommendationEvent('completed', id, { source: 'candidate-list', actualMinutes });
     this.render(document.getElementById('content'));
   },
-
-  _toast(msg) { Toast.show(msg); },
-
-  _esc(s) {
-    if (s === null || s === undefined) return '';
-    const d = document.createElement('div');
-    d.textContent = s;
-    return d.innerHTML;
+  _update(id, status) { const item = this.items.find(value => value.id === id); if (!item) return; item.status = status; item.updatedAt = new Date().toISOString(); Store.saveCandidateItems(this.items); Store.addRecommendationEvent(status === 'archived' ? 'archived' : 'completed', id, { source: 'candidate-list' }); this.render(document.getElementById('content')); },
+  _formatHours(minutes) {
+    const rounded = Math.max(15, Math.round(Number(minutes || 0) / 15) * 15);
+    if (rounded < 60) return `${rounded} 分钟`;
+    const hours = rounded / 60;
+    return `${Number.isInteger(hours) ? hours : hours.toFixed(1)} 小时`;
   },
+  _esc(value) { const element = document.createElement('div'); element.textContent = value || ''; return element.innerHTML; },
 };

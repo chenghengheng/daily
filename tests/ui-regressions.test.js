@@ -27,9 +27,10 @@ test('首页命名为现在并保留消费与等待进度摘要', () => { assert
 test('推荐展示本地理由且切换后排除本轮事项', () => { assert.match(dashboardSource, /explainRecommendation/); assert.match(dashboardSource, /excludedIds/); assert.match(dashboardSource, /现在不适合/); });
 test('投入结束生成经历并使用类型化动作', () => { assert.match(dashboardSource, /recordExperience/); assert.match(dashboardSource, /看完了/); assert.match(dashboardSource, /做到一部分/); });
 test('候选事项展示生命周期和经历过视图', () => { assert.match(noteSource, /一次性/); assert.match(noteSource, /持续型/); assert.match(noteSource, /可重复/); assert.match(noteSource, /经历过/); });
+test('现在页提供本地温和月度回顾', () => { const reviewSource = dashboardSource.match(/\n  _showMonthlyReview\(\) \{[\s\S]*?\n  },/)?.[0] || ''; assert.match(reviewSource, /monthlyReview/); assert.match(reviewSource, /本月温和回顾/); assert.doesNotMatch(reviewSource, /超支|失败|断签/); });
 test('仪表盘使用功能开关并可恢复持久化计时', () => { assert.match(dashboardSource, /config\.features\.studyEnabled/); assert.match(dashboardSource, /Store\.getTimer/); assert.match(dashboardSource, /timer-resume/); });
 test('倒计时新增流程使用统一 Modal 接缝', () => assert.match(countdownSource, /_showAddModal\(\)[\s\S]{0,180}Modal\.open/));
 test('背景功能已从页面、应用、存储和样式中完全移除', () => {
   assert.doesNotMatch(dashboardSource + appSource + storeSource + styleSource, /背景图片|背景图|bgImage|has-bg|bg-light/);
 });
-test('本轮发布更新离线缓存版本', () => assert.match(serviceWorkerSource, /daily-shell-v10/));
+test('本轮发布更新离线缓存版本', () => assert.match(serviceWorkerSource, /daily-shell-v11/));

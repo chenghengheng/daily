@@ -150,6 +150,34 @@
     return `你有 ${minutes} 分钟，这件事最短需要 ${item.minSessionMinutes} 分钟。`;
   }
 
+  function monthlyReview({ month, wishes = [], expenses = [], experiences = [], events = [] }) {
+    const currentMonth = /^\d{4}-\d{2}$/.test(month || '') ? month : DateUtils.localDate().slice(0, 7);
+    const currentExpenses = expenses.filter(item => !item.deletedAt && item.occurredOn?.startsWith(currentMonth));
+    const currentExperiences = experiences.filter(item => item.occurredOn?.startsWith(currentMonth));
+    const currentEvents = events.filter(item => DateUtils.localDate(new Date(item.createdAt)).startsWith(currentMonth));
+    const currentWishes = wishes.filter(item => DateUtils.localDate(new Date(item.createdAt)).startsWith(currentMonth));
+    const purchased = wishes.filter(item => item.purchasedAt && DateUtils.localDate(new Date(item.purchasedAt)).startsWith(currentMonth));
+    const bySource = source => currentExpenses.filter(item => item.source === source).reduce((sum, item) => sum + finite(item.amount), 0);
+    return {
+      month: currentMonth,
+      experiences: {
+        count: currentExperiences.length,
+        completed: currentExperiences.filter(item => item.outcome === 'completed').length,
+        partial: currentExperiences.filter(item => item.outcome === 'partial').length,
+        totalMinutes: currentExperiences.reduce((sum, item) => sum + Math.max(0, finite(item.actualMinutes)), 0),
+        uniqueCandidates: new Set(currentExperiences.map(item => item.candidateId)).size,
+      },
+      wishes: { created: currentWishes.length, purchased: purchased.length, early: purchased.filter(item => item.purchaseTiming === 'early').length, waiting: wishes.filter(item => item.status === 'active').length },
+      expenses: { total: bySource('quick') + bySource('wish'), quick: bySource('quick'), planned: bySource('wish') },
+      feedback: {
+        accepted: currentEvents.filter(item => item.type === 'started').length,
+        switched: currentEvents.filter(item => item.type === 'switched').length,
+        notNow: currentEvents.filter(item => item.type === 'snoozed').length,
+        calibrated: currentEvents.filter(item => item.type === 'time_mismatch').length,
+      },
+    };
+  }
+
   class InferenceProvider { infer() { throw new Error('InferenceProvider.infer must be implemented'); } }
   class RuleInferenceProvider extends InferenceProvider { infer(input) { return Promise.resolve(inferCandidate(input)); } }
   class DeepSeekInferenceProvider extends InferenceProvider {
@@ -197,5 +225,5 @@
     }
   }
 
-  return { TYPES, CATEGORIES, normalizeWish, applyWishProgress, createWish, accumulatedAmount, inferCandidate, migrateNote, normalizeExpense, validateImport, recommend, explainRecommendation, InferenceProvider, RuleInferenceProvider, DeepSeekInferenceProvider };
+  return { TYPES, CATEGORIES, normalizeWish, applyWishProgress, createWish, accumulatedAmount, inferCandidate, migrateNote, normalizeExpense, validateImport, recommend, explainRecommendation, monthlyReview, InferenceProvider, RuleInferenceProvider, DeepSeekInferenceProvider };
 });

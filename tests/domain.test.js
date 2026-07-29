@@ -67,6 +67,10 @@ test('推荐可以排除本轮已切换事项并生成可解释理由', () => {
   assert.equal(Domain.recommend([task], 30, [], () => 0, { excludedIds: ['task'] }), null);
   assert.match(Domain.explainRecommendation(task, 30, []), /30 分钟|等待/);
 });
+test('温和月度回顾汇总投入、愿望、消费和推荐反馈', () => {
+  const review = Domain.monthlyReview({ month: '2026-07', wishes: [wish({ createdAt: '2026-07-01T00:00:00Z' })], expenses: [{ amount: 18, source: 'quick', occurredOn: '2026-07-02' }], experiences: [{ candidateId: 'c1', outcome: 'partial', actualMinutes: 20, occurredOn: '2026-07-03' }], events: [{ type: 'switched', createdAt: '2026-07-03T00:00:00Z' }] });
+  assert.equal(review.expenses.quick, 18); assert.equal(review.experiences.totalMinutes, 20); assert.equal(review.wishes.created, 1); assert.equal(review.feedback.switched, 1);
+});
 test('DeepSeek 推断只发送当前事项且保留用户标题和类型', async () => {
   let request;
   const provider = new Domain.DeepSeekInferenceProvider('test-only', async (url, options) => { request = { url, options }; return { ok: true, json: async () => ({ choices: [{ message: { content: '{"minSessionMinutes":12,"sessionMode":"flexible","energy":"low"}' } }] }) }; });

@@ -52,6 +52,7 @@ const Dashboard = {
         <a href="#/expense" class="stat-card" style="text-decoration:none;color:inherit;"><div class="stat-number">¥${(quickSpend + plannedSpend).toFixed(1)}</div><div class="stat-label">本月非必要消费</div><div style="font-size:10px;color:var(--text3);margin-top:4px;">即时 ¥${quickSpend.toFixed(1)} · 计划 ¥${plannedSpend.toFixed(1)}</div></a>
         <a href="#/wish" class="stat-card" style="text-decoration:none;color:inherit;"><div class="stat-number">¥${waitingProgress.toFixed(1)}</div><div class="stat-label">等待进度 · ${activeWish.length} 项</div><div style="font-size:10px;color:var(--text3);margin-top:4px;">不是余额或存款</div></a>
       </div>
+      <button class="btn btn-outline btn-block" id="monthly-review" style="margin-bottom:16px;">查看本月温和回顾</button>
 
       ${wishReady > 0 ? `
         <div class="card" style="border-color:var(--gold);">
@@ -83,6 +84,7 @@ const Dashboard = {
     `;
 
     container.querySelector('#dashboard-settings-btn')?.addEventListener('click', () => this._showSettingsModal());
+    container.querySelector('#monthly-review')?.addEventListener('click', () => this._showMonthlyReview());
     container.querySelector('#timer-resume')?.addEventListener('click', () => this._startTimer(timerItem, activeTimer.plannedMinutes, activeTimer.startedAt));
     container.querySelector('#timer-discard')?.addEventListener('click', () => { Store.saveTimer(null); this.render(container); });
     container.querySelectorAll('.card-stagger > a[href="#/wish"], .card-stagger > a[href="#/countdown"], .card-stagger > a[href="#/study"]').forEach(element => element.remove());
@@ -91,6 +93,12 @@ const Dashboard = {
       if (!Number.isFinite(minutes) || minutes <= 0) return;
       this._recommend(minutes);
     }));
+  },
+
+  _showMonthlyReview() {
+    const review = DailyDomain.monthlyReview({ month: Store.today().slice(0, 7), wishes: Store.getWishItems(), expenses: Store.getExpenses(), experiences: Store.getExperiences(), events: Store.getRecommendationEvents() });
+    const modal = Modal.open({ title: '本月温和回顾', body: `<h2>${review.month.replace('-', ' 年 ')} 月</h2><div class="card"><div class="card-title">选择与投入</div><p>本月有 ${review.experiences.count} 次实际投入，共 ${review.experiences.totalMinutes} 分钟。</p><p style="font-size:12px;color:var(--text2);margin-top:5px;">完成 ${review.experiences.completed} 次 · 部分进行 ${review.experiences.partial} 次 · 涉及 ${review.experiences.uniqueCandidates} 个事项</p></div><div class="card"><div class="card-title">愿望</div><p>新增 ${review.wishes.created} 个，购买 ${review.wishes.purchased} 个，其中提前购买 ${review.wishes.early} 个。</p><p style="font-size:12px;color:var(--text2);margin-top:5px;">当前仍有 ${review.wishes.waiting} 个在等待。</p></div><div class="card"><div class="card-title">非必要消费</div><p>本月共 ¥${review.expenses.total.toFixed(2)}。</p><p style="font-size:12px;color:var(--text2);margin-top:5px;">即时型 ¥${review.expenses.quick.toFixed(2)} · 计划型 ¥${review.expenses.planned.toFixed(2)}</p></div><div class="card"><div class="card-title">推荐反馈</div><p>开始 ${review.feedback.accepted} 次 · 换一个 ${review.feedback.switched} 次 · 现在不适合 ${review.feedback.notNow} 次 · 时长校准 ${review.feedback.calibrated} 次</p></div><div class="modal-actions"><button class="btn btn-primary" id="review-close">知道了</button></div>` });
+    modal.overlay.querySelector('#review-close').onclick = modal.close;
   },
 
   _recommend(minutes, excludedIds = []) {

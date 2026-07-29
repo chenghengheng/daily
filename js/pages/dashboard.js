@@ -8,7 +8,12 @@ const Dashboard = {
     const timerItem = activeTimer ? Store.getCandidateItems().find(item => item.id === activeTimer.candidateId) : null;
     const activeWish = wishItems.filter(i => i.status === 'active');
     const wishReady = activeWish.filter(i => i.currentProgress >= i.price).length;
-    const accumulated = DailyDomain.accumulatedAmount(wishItems, Store.getExpenses());
+    const expenses = Store.getExpenses();
+    const waitingProgress = activeWish.reduce((sum, item) => sum + item.currentProgress, 0);
+    const month = Store.today().slice(0, 7);
+    const monthlyExpenses = expenses.filter(item => !item.deletedAt && item.occurredOn?.startsWith(month));
+    const quickSpend = monthlyExpenses.filter(item => item.source !== 'wish').reduce((sum, item) => sum + item.amount, 0);
+    const plannedSpend = monthlyExpenses.filter(item => item.source === 'wish').reduce((sum, item) => sum + item.amount, 0);
 
     const now = new Date();
     now.setHours(0, 0, 0, 0);
@@ -23,13 +28,9 @@ const Dashboard = {
       .slice(0, 3);
 
     container.innerHTML = `
-      <div class="card">
-        <div class="card-title">我现在有空</div>
-        <div style="display:flex;gap:6px;flex-wrap:wrap;" id="free-time-options">
-          ${[10,20,45,60,120].map(minutes => `<button class="btn btn-sm btn-outline" data-minutes="${minutes}">${minutes < 60 ? `${minutes}分钟` : `${minutes / 60}小时`}</button>`).join('')}
-          <button class="btn btn-sm btn-outline" data-minutes="custom">自定义</button>
-        </div>
-      </div>
+      ${upcoming.length > 0 ? `
+        <div class="card"><div class="card-title">需要注意</div>${upcoming.map(ev => `<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:14px;"><span>${this._esc(ev.title)}</span><span style="color:var(--gold);">${ev.diff === 0 ? '今天' : `${ev.diff} 天后`}</span></div>`).join('')}</div>
+      ` : ''}
       ${activeTimer ? `
         <div class="card" style="border-color:var(--sheikah);">
           <div class="card-title">计时仍在进行</div>
@@ -40,15 +41,16 @@ const Dashboard = {
           </div>
         </div>
       ` : ''}
+      <div class="card">
+        <div class="card-title">我现在有空</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;" id="free-time-options">
+          ${[10,20,45,60,120].map(minutes => `<button class="btn btn-sm btn-outline" data-minutes="${minutes}">${minutes < 60 ? `${minutes}分钟` : `${minutes / 60}小时`}</button>`).join('')}
+          <button class="btn btn-sm btn-outline" data-minutes="custom">自定义</button>
+        </div>
+      </div>
       <div class="stat-grid stat-enter" style="margin-bottom:16px;">
-        <div class="stat-card">
-          <div class="stat-number">${activeWish.length}</div>
-          <div class="stat-label">进行中 · 清单</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-number">¥${accumulated.toFixed(1)}</div>
-          <div class="stat-label">已累积</div>
-        </div>
+        <a href="#/expense" class="stat-card" style="text-decoration:none;color:inherit;"><div class="stat-number">¥${(quickSpend + plannedSpend).toFixed(1)}</div><div class="stat-label">本月非必要消费</div><div style="font-size:10px;color:var(--text3);margin-top:4px;">即时 ¥${quickSpend.toFixed(1)} · 计划 ¥${plannedSpend.toFixed(1)}</div></a>
+        <a href="#/wish" class="stat-card" style="text-decoration:none;color:inherit;"><div class="stat-number">¥${waitingProgress.toFixed(1)}</div><div class="stat-label">等待进度 · ${activeWish.length} 项</div><div style="font-size:10px;color:var(--text3);margin-top:4px;">不是余额或存款</div></a>
       </div>
 
       ${wishReady > 0 ? `
@@ -57,21 +59,6 @@ const Dashboard = {
             <span style="font-size:14px;font-weight:600;">🎯 ${wishReady} 个物品已达目标</span>
             <a href="#/wish" style="color:var(--sheikah);font-size:13px;text-decoration:none;">去看看 →</a>
           </div>
-        </div>
-      ` : ''}
-
-      ${upcoming.length > 0 ? `
-        <div class="card">
-          <div class="card-title">⏰ 即将到来</div>
-          ${upcoming.map(ev => `
-            <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;font-size:14px;border-bottom:1px solid var(--border);">
-              <span>
-                ${ev.type === 'reminder' ? '<span style="font-size:10px;color:var(--gold);">⚠</span> ' : ev.type === 'event' ? '<span style="font-size:10px;color:var(--sheikah);">★</span> ' : ''}
-                ${this._esc(ev.title)}
-              </span>
-              <span style="color:${ev.diff <= 7 ? 'var(--gold)' : 'var(--sheikah)'};font-weight:600;">${ev.diff} 天</span>
-            </div>
-          `).join('')}
         </div>
       ` : ''}
 
@@ -106,16 +93,17 @@ const Dashboard = {
     }));
   },
 
-  _recommend(minutes) {
+  _recommend(minutes, excludedIds = []) {
     const items = Store.getCandidateItems();
     const events = Store.getRecommendationEvents();
-    const item = DailyDomain.recommend(items, minutes, events);
+    const item = DailyDomain.recommend(items, minutes, events, Math.random, { excludedIds });
     if (!item) { Toast.show('这个时长暂时没有合适事项，可以先记下一件想做的事'); return; }
     Store.addRecommendationEvent('suggested', item.id, { availableMinutes: minutes });
     const typeLabels = { task: '事', book: '书', movie: '影', series: '剧', idea: '想法', media: '书影音（待确认）' };
-    const modal = Modal.open({ title: '现在可以做', body: `<span class="badge badge-active">${typeLabels[item.type] || '事项'}</span><h2 style="margin-top:8px;">${this._esc(item.title)}</h2><p style="color:var(--text2);">${item.sessionMode === 'continuous' ? '适合一次完成' : `可以从 ${item.minSessionMinutes} 分钟开始`}</p><div class="modal-actions"><button class="btn btn-outline" id="recommend-snooze">今天不想做</button><button class="btn btn-outline" id="recommend-switch">换一个</button><button class="btn btn-primary" id="recommend-start">开始</button></div>` });
-    modal.overlay.querySelector('#recommend-switch').onclick = () => { Store.addRecommendationEvent('switched', item.id, { availableMinutes: minutes }); modal.close(); setTimeout(() => this._recommend(minutes), 180); };
-    modal.overlay.querySelector('#recommend-snooze').onclick = () => { Store.addRecommendationEvent('snoozed', item.id, { until: Store.today() }); modal.close(); };
+    const reason = DailyDomain.explainRecommendation(item, minutes, events);
+    const modal = Modal.open({ title: '现在可以做', body: `<span class="badge badge-active">${typeLabels[item.type] || '事项'}</span><h2 style="margin-top:8px;">${this._esc(item.title)}</h2><p style="color:var(--text2);">${this._esc(reason)}</p><div class="modal-actions"><button class="btn btn-outline" id="recommend-snooze">现在不适合</button><button class="btn btn-outline" id="recommend-switch">换一个</button><button class="btn btn-primary" id="recommend-start">开始</button></div>` });
+    modal.overlay.querySelector('#recommend-switch').onclick = () => { Store.addRecommendationEvent('switched', item.id, { availableMinutes: minutes }); modal.close(); setTimeout(() => this._recommend(minutes, [...excludedIds, item.id]), 180); };
+    modal.overlay.querySelector('#recommend-snooze').onclick = () => { Store.addRecommendationEvent('snoozed', item.id, { until: Store.today(), availableMinutes: minutes }); modal.close(); };
     modal.overlay.querySelector('#recommend-start').onclick = () => { Store.addRecommendationEvent('started', item.id, { plannedMinutes: minutes }); modal.close(); this._startTimer(item, minutes); };
   },
 

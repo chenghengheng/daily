@@ -60,6 +60,11 @@ test('未知总时长的 continuous 事项仍遵守最小有效时长', () => {
   assert.equal(Domain.recommend([movie], 10, [], () => 0), null);
   assert.equal(Domain.recommend([movie], 90, [], () => 0).id, 'movie');
 });
+test('推荐可以排除本轮已切换事项并生成可解释理由', () => {
+  const task = Domain.inferCandidate({ id: 'task', title: '整理桌面', createdAt: '2026-07-01T00:00:00Z' });
+  assert.equal(Domain.recommend([task], 30, [], () => 0, { excludedIds: ['task'] }), null);
+  assert.match(Domain.explainRecommendation(task, 30, []), /30 分钟|等待/);
+});
 test('DeepSeek 推断只发送当前事项且保留用户标题和类型', async () => {
   let request;
   const provider = new Domain.DeepSeekInferenceProvider('test-only', async (url, options) => { request = { url, options }; return { ok: true, json: async () => ({ choices: [{ message: { content: '{"minSessionMinutes":12,"sessionMode":"flexible","energy":"low"}' } }] }) }; });

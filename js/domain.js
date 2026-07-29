@@ -112,11 +112,12 @@
     return { ok: true };
   }
 
-  function recommend(items, availableMinutes, events = [], random = Math.random) {
+  function recommend(items, availableMinutes, events = [], random = Math.random, options = {}) {
     const minutes = Math.max(1, finite(availableMinutes, 30));
     const recent = events.slice(-30);
+    const excludedIds = new Set(options.excludedIds || []);
     const snoozedToday = new Set(recent.filter(event => event.type === 'snoozed' && DateUtils.localDate(new Date(event.createdAt)) === DateUtils.localDate()).map(event => event.candidateId));
-    const eligible = items.filter(item => ['active', 'in_progress'].includes(item.status) && !snoozedToday.has(item.id)).filter(item => {
+    const eligible = items.filter(item => ['active', 'in_progress'].includes(item.status) && !snoozedToday.has(item.id) && !excludedIds.has(item.id)).filter(item => {
       if (item.sessionMode !== 'continuous') return item.minSessionMinutes <= minutes;
       const requiredMinutes = Math.max(1, finite(item.estimatedMinutes, item.minSessionMinutes));
       return requiredMinutes <= minutes * 1.15;
@@ -132,6 +133,19 @@
     if (!scored.length) return null;
     const pool = scored.slice(0, Math.min(3, scored.length));
     return pool[Math.floor(random() * pool.length)].item;
+  }
+
+  function explainRecommendation(item, availableMinutes, events = []) {
+    const minutes = Math.max(1, finite(availableMinutes, 30));
+    const mismatches = events.filter(event => event.candidateId === item.id && event.type === 'time_mismatch');
+    if (mismatches.length) return `上次校准过时长，这次按 ${minutes} 分钟重新匹配。`;
+    if (item.sessionMode === 'continuous') {
+      const duration = Math.max(1, finite(item.estimatedMinutes, item.minSessionMinutes));
+      return `预计约 ${duration} 分钟，适合现在一次完成。`;
+    }
+    const age = Math.max(0, DateUtils.daysBetween(DateUtils.localDate(new Date(item.createdAt)), DateUtils.localDate()));
+    if (age >= 14) return `已经等待 ${age} 天，且 ${item.minSessionMinutes} 分钟可以开始。`;
+    return `你有 ${minutes} 分钟，这件事最短需要 ${item.minSessionMinutes} 分钟。`;
   }
 
   class InferenceProvider { infer() { throw new Error('InferenceProvider.infer must be implemented'); } }
@@ -181,5 +195,5 @@
     }
   }
 
-  return { TYPES, CATEGORIES, normalizeWish, applyWishProgress, createWish, accumulatedAmount, inferCandidate, migrateNote, normalizeExpense, validateImport, recommend, InferenceProvider, RuleInferenceProvider, DeepSeekInferenceProvider };
+  return { TYPES, CATEGORIES, normalizeWish, applyWishProgress, createWish, accumulatedAmount, inferCandidate, migrateNote, normalizeExpense, validateImport, recommend, explainRecommendation, InferenceProvider, RuleInferenceProvider, DeepSeekInferenceProvider };
 });

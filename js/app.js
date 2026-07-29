@@ -127,7 +127,7 @@ const App = {
       el.classList.toggle('active', el.dataset.page === page);
     });
 
-    const titles = { dashboard: '仪表盘', wish: '清单', study: '学习', countdown: '倒计时', note: '候选事项', expense: '随手花' };
+    const titles = { dashboard: '现在', wish: '清单', study: '学习', countdown: '倒计时', note: '候选事项', expense: '随手花' };
     document.getElementById('page-title').textContent = titles[page] || 'Daily';
 
     const container = document.getElementById('content');

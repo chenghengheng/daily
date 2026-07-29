@@ -48,6 +48,8 @@ test('候选事项规则覆盖电影、书籍和整理任务', () => {
   assert.equal(Domain.inferCandidate({ title: '看一部电影' }).sessionMode, 'continuous');
   assert.equal(Domain.inferCandidate({ title: '读一本书' }).minSessionMinutes, 20);
   assert.equal(Domain.inferCandidate({ title: '整理房间' }).sessionMode, 'flexible');
+  assert.equal(Domain.inferCandidate({ title: '电影', type: 'movie' }).lifecycle, 'one_time');
+  assert.equal(Domain.inferCandidate({ title: '读书', type: 'book' }).lifecycle, 'ongoing');
 });
 test('旧随手记 media 保留为待确认类型，不擅自归为影片', () => assert.equal(Domain.migrateNote({ id: 'n1', title: '待看', tag: 'media', status: 'active' }).type, 'media'));
 test('用户手动选择的候选类型不会被标题关键词覆盖', () => assert.equal(Domain.inferCandidate({ title: '整理电影票', type: 'task' }).type, 'task'));

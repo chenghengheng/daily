@@ -31,8 +31,18 @@ test('只保留最近十个快照并可恢复', () => {
 });
 test('完整导出包含必需数据域和版本', () => {
   const data = Store.exportAll();
-  for (const key of ['version','config','wish','study','countdown','note','candidates','expenses','recommendationEvents','recommendationProfile','recommendationSettings','timer']) assert.ok(Object.hasOwn(data, key), key);
+  for (const key of ['version','config','wish','study','countdown','note','candidates','expenses','experiences','recommendationEvents','recommendationProfile','recommendationSettings','timer']) assert.ok(Object.hasOwn(data, key), key);
   assert.equal(Object.hasOwn(data, 'bgImage'), false);
+});
+test('部分投入形成经历并让事项进入进行中', () => {
+  Store.saveCandidateItems([{ id: 'book', title: '读书', type: 'book', lifecycle: 'ongoing', status: 'active' }]);
+  const result = Store.recordExperience('book', { id: 'x1', outcome: 'partial', plannedMinutes: 20, actualMinutes: 18, startedAt: '2026-07-29T10:00:00Z', endedAt: '2026-07-29T10:18:00Z' });
+  assert.equal(result.ok, true); assert.equal(Store.getCandidateItems()[0].status, 'in_progress'); assert.equal(Store.getExperiences()[0].outcome, 'partial');
+});
+test('可重复事项完成后形成经历但仍留在推荐池', () => {
+  Store.saveCandidateItems([{ id: 'walk', title: '散步', type: 'task', lifecycle: 'repeatable', status: 'active' }]);
+  Store.recordExperience('walk', { id: 'x2', outcome: 'completed', plannedMinutes: 30, actualMinutes: 30 });
+  assert.equal(Store.getCandidateItems()[0].status, 'active'); assert.equal(Store.getExperiences()[0].outcome, 'completed');
 });
 test('只有旧随手记时完整导出仍包含迁移后的候选事项', () => {
   values.set('daily_note', JSON.stringify([{ id: 'n1', title: '看电影', tag: 'media', status: 'active' }]));

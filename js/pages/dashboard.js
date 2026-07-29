@@ -117,22 +117,24 @@ const Dashboard = {
     const updateClock = () => { const seconds = Math.max(0, Math.floor((Date.now() - startedAt) / 1000)); clock.textContent = `${String(Math.floor(seconds / 60)).padStart(2,'0')}:${String(seconds % 60).padStart(2,'0')}`; };
     updateClock();
     interval = setInterval(updateClock, 1000);
-    modal.overlay.querySelector('#session-stop').onclick = () => { clearInterval(interval); Store.saveTimer(null); const actual = Math.max(1, Math.round((Date.now() - startedAt) / 60000)); if (actual < minutes) Store.addRecommendationEvent('stopped_early', item.id, { plannedMinutes: minutes, actualMinutes: actual }); modal.close(); setTimeout(() => this._finishSession(item, minutes, actual), 180); };
+    modal.overlay.querySelector('#session-stop').onclick = () => { clearInterval(interval); Store.saveTimer(null); const actual = Math.max(1, Math.round((Date.now() - startedAt) / 60000)); if (actual < minutes) Store.addRecommendationEvent('stopped_early', item.id, { plannedMinutes: minutes, actualMinutes: actual }); modal.close(); setTimeout(() => this._finishSession(item, minutes, actual, new Date(startedAt).toISOString()), 180); };
   },
 
-  _finishSession(item, plannedMinutes, actualMinutes) {
-    const modal = Modal.open({ title: '这次怎么样？', body: `<h2>这次怎么样？</h2><div style="display:grid;gap:8px;"><button class="btn btn-primary" data-result="completed">完成了</button><button class="btn btn-outline" data-result="continue">还要继续</button><button class="btn btn-outline" data-result="mismatch">不适合这个时长</button></div>` });
+  _finishSession(item, plannedMinutes, actualMinutes, startedAt) {
+    const completedLabels = { movie: '看完了', series: '看完本剧', book: '读完了', task: '做完了', idea: '处理好了' };
+    const partialLabels = { movie: '还没看完', series: '看了一段', book: '读了一会', task: '做到一部分', idea: '记录了一点' };
+    const modal = Modal.open({ title: '这次怎么样？', body: `<h2>这次怎么样？</h2><div style="display:grid;gap:8px;"><button class="btn btn-primary" data-result="completed">${completedLabels[item.type] || '完成了'}</button><button class="btn btn-outline" data-result="partial">${partialLabels[item.type] || '做到一部分'}</button><button class="btn btn-outline" data-result="continue">还要继续</button><button class="btn btn-outline" data-result="mismatch">时长不准</button></div>` });
     modal.overlay.querySelectorAll('[data-result]').forEach(button => button.onclick = () => {
       const result = button.dataset.result;
       Store.addRecommendationEvent(result === 'completed' ? 'completed' : result === 'mismatch' ? 'time_mismatch' : 'started', item.id, { plannedMinutes, actualMinutes });
-      if (result === 'completed') {
-        const items = Store.getCandidateItems();
-        const current = items.find(value => value.id === item.id);
-        if (current) { current.status = 'done'; current.updatedAt = new Date().toISOString(); Store.saveCandidateItems(items); }
+      if (['completed', 'partial', 'continue', 'mismatch'].includes(result)) {
+        const saved = Store.recordExperience(item.id, { outcome: result === 'completed' ? 'completed' : 'partial', plannedMinutes, actualMinutes, startedAt });
+        if (!saved.ok) { Toast.show(saved.error || '投入记录保存失败'); return; }
       }
       modal.close();
       if (result === 'mismatch') setTimeout(() => this._calibrateDuration(item), 180);
       if (result === 'continue') setTimeout(() => this._startTimer(item, plannedMinutes), 180);
+      if (result === 'completed' || result === 'partial') setTimeout(() => App.route(), 180);
     });
   },
 

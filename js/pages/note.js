@@ -1,19 +1,24 @@
 const Note = {
   items: [],
+  experienceFilter: 'all',
   render(container) {
     this.items = Store.getCandidateItems();
     const active = this.items.filter(item => ['active', 'in_progress', 'snoozed'].includes(item.status));
     const archived = this.items.filter(item => ['done', 'archived'].includes(item.status));
+    const experiences = Store.getExperiences().slice().reverse().filter(item => this.experienceFilter === 'all' || item.outcome === this.experienceFilter);
     const llmEnabled = sessionStorage.getItem('daily_llm_enabled') === 'true';
     container.innerHTML = `
       <div style="display:flex;gap:8px;margin-bottom:16px;align-items:center;"><button class="btn btn-primary" id="note-add-btn">+ 记一下</button><button class="btn btn-outline choice-button" id="note-llm-toggle" aria-pressed="${llmEnabled}">LLM ${llmEnabled ? '已开启' : '已关闭'}</button></div>
       ${active.length ? `<div class="card-stagger">${active.map(item => this._card(item)).join('')}</div>` : '<div class="empty-state"><p>还没有候选事项</p><p>只写标题即可，其他信息稍后再补。</p></div>'}
-      ${archived.length ? `<details><summary>已完成或归档（${archived.length}）</summary>${archived.map(item => this._card(item)).join('')}</details>` : ''}`;
+      ${archived.length ? `<details><summary>已完成或归档（${archived.length}）</summary>${archived.map(item => this._card(item)).join('')}</details>` : ''}
+      <details style="margin-top:12px;"><summary>经历过（${Store.getExperiences().length}）</summary><div style="display:flex;gap:6px;margin:10px 0;">${[['all','全部'],['completed','完成'],['partial','部分进行']].map(([key,label]) => `<button class="btn btn-sm btn-outline" data-experience-filter="${key}" aria-pressed="${this.experienceFilter === key}">${label}</button>`).join('')}</div>${experiences.length ? experiences.map(item => this._experienceCard(item)).join('') : '<p style="font-size:12px;color:var(--text2);">还没有符合条件的经历</p>'}</details>`;
     container.querySelector('#note-add-btn').onclick = () => this._add();
     container.querySelector('#note-llm-toggle').onclick = () => { const next = !(sessionStorage.getItem('daily_llm_enabled') === 'true'); sessionStorage.setItem('daily_llm_enabled', String(next)); Toast.show(next ? 'LLM 标注已开启' : 'LLM 标注已关闭'); this.render(container); };
-    container.querySelectorAll('[data-done]').forEach(button => button.onclick = () => this._update(button.dataset.done, 'done'));
+    container.querySelectorAll('[data-done]').forEach(button => button.onclick = () => this._complete(button.dataset.done));
     container.querySelectorAll('[data-archive]').forEach(button => button.onclick = () => this._update(button.dataset.archive, 'archived'));
     container.querySelectorAll('[data-classify]').forEach(button => button.onclick = () => this._classify(button.dataset.classify));
+    container.querySelectorAll('[data-lifecycle]').forEach(button => button.onclick = () => this._cycleLifecycle(button.dataset.lifecycle));
+    container.querySelectorAll('[data-experience-filter]').forEach(button => button.onclick = () => { this.experienceFilter = button.dataset.experienceFilter; this.render(container); });
   },
   _card(item) {
     const labels = { task: '要做的事', book: '书', movie: '电影', series: '剧集', idea: '想法', media: '书影音（待确认）' };
@@ -22,7 +27,18 @@ const Note = {
     const duration = item.sessionMode === 'continuous'
       ? `预计约 ${this._formatHours(item.estimatedMinutes || item.minSessionMinutes)}`
       : `最短 ${item.minSessionMinutes} 分钟`;
-    return `<div class="card note-item" data-id="${item.id}"><span class="badge badge-active">${labels[item.type] || '事项'}</span><div style="font-size:16px;font-weight:600;margin-top:8px;">${this._esc(item.title)}</div>${item.note ? `<p style="color:var(--text2);margin-top:4px;">${this._esc(item.note)}</p>` : ''}<p style="font-size:12px;color:var(--text2);margin-top:8px;">${modes[item.sessionMode]} · ${duration} · ${source}</p>${item.type === 'media' ? `<button class="btn btn-sm btn-outline" data-classify="${item.id}">确认是书 / 影 / 剧</button>` : ''}${item.status === 'done' || item.status === 'archived' ? '' : `<div style="display:flex;gap:8px;margin-top:10px;"><button class="btn btn-sm btn-primary" data-done="${item.id}">完成</button><button class="btn btn-sm btn-outline" data-archive="${item.id}">归档</button></div>`}</div>`;
+    const lifecycleLabels = { one_time: '一次性', ongoing: '持续型', repeatable: '可重复' };
+    return `<div class="card note-item" data-id="${item.id}"><span class="badge badge-active">${labels[item.type] || '事项'}</span><button class="badge" style="border:0;margin-left:4px;" data-lifecycle="${item.id}">${lifecycleLabels[item.lifecycle] || '一次性'}</button><div style="font-size:16px;font-weight:600;margin-top:8px;">${this._esc(item.title)}</div>${item.note ? `<p style="color:var(--text2);margin-top:4px;">${this._esc(item.note)}</p>` : ''}<p style="font-size:12px;color:var(--text2);margin-top:8px;">${modes[item.sessionMode]} · ${duration} · ${source}</p>${item.type === 'media' ? `<button class="btn btn-sm btn-outline" data-classify="${item.id}">确认是书 / 影 / 剧</button>` : ''}${item.status === 'done' || item.status === 'archived' ? '' : `<div style="display:flex;gap:8px;margin-top:10px;"><button class="btn btn-sm btn-primary" data-done="${item.id}">完成</button><button class="btn btn-sm btn-outline" data-archive="${item.id}">归档</button></div>`}</div>`;
+  },
+  _experienceCard(item) {
+    const outcomes = { completed: '完成', partial: '部分进行', stopped: '中止' };
+    return `<div class="card" style="padding:12px;"><div style="display:flex;justify-content:space-between;gap:8px;"><strong>${this._esc(item.title)}</strong><span class="badge">${outcomes[item.outcome] || item.outcome}</span></div><p style="font-size:12px;color:var(--text2);margin-top:5px;">${item.occurredOn} · 实际 ${item.actualMinutes} 分钟</p>${item.note ? `<p style="font-size:12px;margin-top:4px;">${this._esc(item.note)}</p>` : ''}</div>`;
+  },
+  _cycleLifecycle(id) {
+    const item = this.items.find(value => value.id === id); if (!item) return;
+    const values = ['one_time', 'ongoing', 'repeatable'];
+    item.lifecycle = values[(values.indexOf(item.lifecycle) + 1) % values.length]; item.updatedAt = new Date().toISOString();
+    Store.saveCandidateItems(this.items); this.render(document.getElementById('content'));
   },
   _classify(id) {
     const item = this.items.find(value => value.id === id);
@@ -62,6 +78,16 @@ const Note = {
       }
       this.items.push(item); Store.saveCandidateItems(this.items); modal.close(); this.render(document.getElementById('content'));
     };
+  },
+  _complete(id) {
+    const item = this.items.find(value => value.id === id); if (!item) return;
+    const suggested = item.estimatedMinutes || item.minSessionMinutes || 30;
+    const actualMinutes = Number(prompt('这次大约投入了多少分钟？', String(suggested)));
+    if (!Number.isFinite(actualMinutes) || actualMinutes <= 0) return;
+    const result = Store.recordExperience(id, { outcome: 'completed', plannedMinutes: suggested, actualMinutes });
+    if (!result.ok) { Toast.show(result.error || '经历保存失败'); return; }
+    Store.addRecommendationEvent('completed', id, { source: 'candidate-list', actualMinutes });
+    this.render(document.getElementById('content'));
   },
   _update(id, status) { const item = this.items.find(value => value.id === id); if (!item) return; item.status = status; item.updatedAt = new Date().toISOString(); Store.saveCandidateItems(this.items); Store.addRecommendationEvent(status === 'archived' ? 'archived' : 'completed', id, { source: 'candidate-list' }); this.render(document.getElementById('content')); },
   _formatHours(minutes) {

@@ -1,6 +1,6 @@
 const Store = {
   _prefix: 'daily_',
-  SCHEMA_VERSION: 3,
+  SCHEMA_VERSION: 4,
   _errorHandler: null,
   onError(handler) { this._errorHandler = handler; },
   _fail(message, error) { this._errorHandler?.(message, error); return false; },
@@ -46,6 +46,7 @@ const Store = {
   },
   saveCandidateItems(value) { return this._set('candidate_items', value); },
   getExpenses() { return this._get('expenses', []).map(DailyDomain.normalizeExpense); }, saveExpenses(value) { return this._set('expenses', value); },
+  getExperiences() { return this._get('experiences', []); }, saveExperiences(value) { return this._set('experiences', value.slice(-2000)); },
   getRecommendationEvents() { return this._get('recommendation_events', []); },
   saveRecommendationEvents(value) { return this._set('recommendation_events', value.slice(-1000)); },
   addRecommendationEvent(type, candidateId, details = {}) {
@@ -70,7 +71,7 @@ const Store = {
   restoreSnapshot(id) { const item = this.getSnapshots().find(entry => entry.id === id); return item ? this._set(item.key, item.value, { snapshot: false }) : false; },
 
   exportAll() {
-    return { version: this.SCHEMA_VERSION, exportedAt: new Date().toISOString(), config: this._get('config', {}), wish: this._get('wish', []), study: this._get('study', []), countdown: this._get('countdown', []), note: this._get('note', []), candidates: this.getCandidateItems(), expenses: this._get('expenses', []), recommendationEvents: this._get('recommendation_events', []), recommendationProfile: this._get('recommendation_profile', {}), recommendationSettings: this._get('recommendation_settings', {}), timer: this._get('timer', null) };
+    return { version: this.SCHEMA_VERSION, exportedAt: new Date().toISOString(), config: this._get('config', {}), wish: this._get('wish', []), study: this._get('study', []), countdown: this._get('countdown', []), note: this._get('note', []), candidates: this.getCandidateItems(), expenses: this._get('expenses', []), experiences: this.getExperiences(), recommendationEvents: this._get('recommendation_events', []), recommendationProfile: this._get('recommendation_profile', {}), recommendationSettings: this._get('recommendation_settings', {}), timer: this._get('timer', null) };
   },
   importAll(data) {
     const validation = DailyDomain.validateImport(data);
@@ -79,7 +80,7 @@ const Store = {
     if (!Object.hasOwn(imported, 'candidates') && Object.hasOwn(imported, 'note')) {
       imported.candidates = imported.note.map(DailyDomain.migrateNote);
     }
-    const mapping = { config: 'config', wish: 'wish', study: 'study', countdown: 'countdown', note: 'note', candidates: 'candidate_items', expenses: 'expenses', recommendationEvents: 'recommendation_events', recommendationProfile: 'recommendation_profile', recommendationSettings: 'recommendation_settings', timer: 'timer' };
+    const mapping = { config: 'config', wish: 'wish', study: 'study', countdown: 'countdown', note: 'note', candidates: 'candidate_items', expenses: 'expenses', experiences: 'experiences', recommendationEvents: 'recommendation_events', recommendationProfile: 'recommendation_profile', recommendationSettings: 'recommendation_settings', timer: 'timer' };
     const before = this.exportAll();
     this._set('full-import', before, { snapshot: false });
     for (const [field, key] of Object.entries(mapping)) if (Object.hasOwn(imported, field) && !this._set(key, imported[field], { snapshot: false })) {
@@ -116,7 +117,33 @@ const Store = {
     }
     return { ok: true, item };
   },
-  clearAll() { ['config','wish','study','countdown','note','candidate_items','expenses','recommendation_events','recommendation_profile','recommendation_settings','timer','snapshots','full-import'].forEach(key => this._remove(key)); },
+  recordExperience(candidateId, input = {}) {
+    const candidatesBefore = this.getCandidateItems();
+    const experiencesBefore = this.getExperiences();
+    const candidates = JSON.parse(JSON.stringify(candidatesBefore));
+    const experiences = JSON.parse(JSON.stringify(experiencesBefore));
+    const item = candidates.find(value => value.id === candidateId);
+    if (!item) return { ok: false, error: '候选事项已不存在' };
+    const outcome = ['partial', 'completed', 'stopped'].includes(input.outcome) ? input.outcome : 'partial';
+    const now = input.endedAt || new Date().toISOString();
+    const experience = {
+      id: input.id || this.genId(), candidateId: item.id, title: item.title, type: item.type,
+      lifecycle: item.lifecycle, outcome, plannedMinutes: Math.max(1, Number(input.plannedMinutes) || 1),
+      actualMinutes: Math.max(1, Number(input.actualMinutes) || 1), note: String(input.note || '').trim(),
+      startedAt: input.startedAt || now, endedAt: now, occurredOn: input.occurredOn || this.today(new Date(now)),
+    };
+    experiences.push(experience);
+    if (outcome === 'completed') item.status = item.lifecycle === 'repeatable' ? 'active' : 'done';
+    else if (outcome === 'partial') item.status = 'in_progress';
+    item.updatedAt = now;
+    if (!this._set('experiences', experiences)) return { ok: false, error: '投入记录保存失败' };
+    if (!this._set('candidate_items', candidates)) {
+      this._set('experiences', experiencesBefore, { snapshot: false });
+      return { ok: false, error: '事项状态保存失败，投入记录已回滚' };
+    }
+    return { ok: true, experience, item };
+  },
+  clearAll() { ['config','wish','study','countdown','note','candidate_items','expenses','experiences','recommendation_events','recommendation_profile','recommendation_settings','timer','snapshots','full-import'].forEach(key => this._remove(key)); },
   clearObsoleteData() {
     try { localStorage.removeItem(this._prefix + ['bg', 'Image'].join('')); } catch (_) { /* best-effort migration cleanup */ }
   },

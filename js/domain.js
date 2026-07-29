@@ -79,12 +79,14 @@
     else if (/整理|收拾|打扫/.test(text)) inferred = { sessionMode: 'flexible', minSessionMinutes: 15, estimatedMinutes: 30, inferenceConfidence: 0.7 };
     else if (/电话|预约|购买|下单/.test(text)) inferred = { sessionMode: 'flexible', minSessionMinutes: 5, estimatedMinutes: 15, inferenceConfidence: 0.7 };
     const now = new Date().toISOString();
+    const defaultLifecycle = type === 'movie' || type === 'task' ? 'one_time' : type === 'series' || type === 'book' || type === 'idea' ? 'ongoing' : 'one_time';
     return {
       id: input.id || '', title: String(input.title || '').trim(), note: String(input.note || '').trim(), type,
       ...inferred, ...input,
       minSessionMinutes: Math.max(1, finite(input.minSessionMinutes, inferred.minSessionMinutes)),
       sessionMode: ['continuous', 'segmentable', 'flexible'].includes(input.sessionMode) ? input.sessionMode : inferred.sessionMode,
       inferenceSource: input.inferenceSource || 'rule',
+      lifecycle: ['one_time', 'ongoing', 'repeatable'].includes(input.lifecycle) ? input.lifecycle : defaultLifecycle,
       status: STATUSES.includes(input.status) ? input.status : 'active',
       createdAt: input.createdAt || now, updatedAt: input.updatedAt || now,
     };
@@ -103,8 +105,8 @@
 
   function validateImport(data) {
     if (!data || typeof data !== 'object' || Array.isArray(data)) return { ok: false, error: '导入文件必须是对象' };
-    if (!Number.isInteger(data.version) || data.version < 1 || data.version > 3) return { ok: false, error: '不支持的数据版本' };
-    const arrays = ['wish', 'study', 'countdown', 'note', 'candidates', 'expenses', 'recommendationEvents', 'snapshots'];
+    if (!Number.isInteger(data.version) || data.version < 1 || data.version > 4) return { ok: false, error: '不支持的数据版本' };
+    const arrays = ['wish', 'study', 'countdown', 'note', 'candidates', 'expenses', 'experiences', 'recommendationEvents', 'snapshots'];
     for (const key of arrays) if (Object.hasOwn(data, key) && !Array.isArray(data[key])) return { ok: false, error: `${key} 必须是数组` };
     if (Object.hasOwn(data, 'config') && (data.config === null || typeof data.config !== 'object' || Array.isArray(data.config))) return { ok: false, error: 'config 必须是对象' };
     if (data.wish?.some(item => !item || typeof item !== 'object' || typeof item.name !== 'string')) return { ok: false, error: '愿望数据结构无效' };

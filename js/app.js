@@ -103,13 +103,15 @@ const App = {
     else if (hash.startsWith('/expense')) page = 'expense';
     else if (hash.startsWith('/countdown')) page = 'countdown';
     else if (hash.startsWith('/note')) page = 'note';
+    else if (hash.startsWith('/timeline')) page = 'timeline';
 
     this.currentPage = page;
+    document.body.classList.toggle('timeline-page', page === 'timeline');
     document.querySelectorAll('.nav-item').forEach(el => {
       el.classList.toggle('active', el.dataset.page === page);
     });
 
-    const titles = { dashboard: '仪表盘', wish: '清单', expense: '随手花', countdown: '倒计时', note: '随手记' };
+    const titles = { dashboard: '仪表盘', wish: '清单', expense: '随手花', countdown: '倒计时', note: '随手记', timeline: '时间轴' };
     document.getElementById('page-title').textContent = titles[page] || 'Daily';
 
     const container = document.getElementById('content');
@@ -121,6 +123,7 @@ const App = {
       case 'expense': Expense.render(container); break;
       case 'countdown': Countdown.render(container); break;
       case 'note': Note.render(container); break;
+      case 'timeline': TimelinePage.render(container, hash.includes('/plan') ? 'plan' : 'now'); break;
     }
 
     animatePageEnter(container);

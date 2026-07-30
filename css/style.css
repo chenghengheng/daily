@@ -141,6 +141,13 @@ body::after {
 #nav [data-page="expense"] { order: 3; }
 #nav [data-page="note"] { order: 4; }
 #nav [data-page="countdown"] { order: 5; }
+#nav [data-page="timeline"] { order: 6; }
+
+body.timeline-page #header,
+body.timeline-page #nav,
+body.timeline-page #scanlines { display: none; }
+body.timeline-page #content { padding: 0; overflow: hidden; }
+body.timeline-page #app { max-width: 480px; }
 .nav-item::before {
   content: ''; position: absolute; top: 0; left: 50%; transform: translateX(-50%);
   width: 24px; height: 2px; border-radius: 0;

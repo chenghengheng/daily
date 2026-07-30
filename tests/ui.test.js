@@ -11,6 +11,7 @@ const store = read('../js/store.js');
 const wish = read('../js/pages/wish.js');
 const expense = read('../js/pages/expense.js');
 const serviceWorker = read('../sw.js');
+const timeline = read('../js/pages/timeline.js');
 
 test('学习功能不再提供入口、路由或脚本', () => { assert.doesNotMatch(app + index, /case 'study'|page = 'study'|data-page="study"|pages\/study/); });
 test('一级导航包含随手花并按产品顺序排列', () => { assert.match(index, /data-page="expense"/); assert.match(css, /dashboard[^}]*order: 1[\s\S]*wish[^}]*order: 2[\s\S]*expense[^}]*order: 3[\s\S]*note[^}]*order: 4[\s\S]*countdown[^}]*order: 5/); });
@@ -20,4 +21,8 @@ test('学习和背景旧数据会删除且不再导入导出', () => { assert.ma
 test('提醒保留复选框有可见原生外观并保存 checked', () => { assert.match(countdown, /cd-keepafter[\s\S]*checked/); assert.match(css, /input\[type="checkbox"\][\s\S]*appearance: auto/); });
 test('等待中清单支持提前购买且实际价格可修改', () => { assert.match(wish, /提前购买/); assert.match(wish, /purchase-price/); assert.match(wish, /Store\.purchaseWish/); });
 test('随手花区分即时型与清单购买且清单来源只读', () => { assert.match(expense, /即时型/); assert.match(expense, /清单购买/); assert.match(expense, /item\.source === 'quick'/); });
-test('离线回退只把应用壳用于导航请求', () => { assert.match(serviceWorker, /daily-lite-v2/); assert.match(serviceWorker, /request\.mode === 'navigate'/); assert.doesNotMatch(serviceWorker, /catch\(\(\) => caches\.match\('\.\/'\)\)/); });
+test('离线回退只把应用壳用于导航请求', () => { assert.match(serviceWorker, /daily-lite-v4/); assert.match(serviceWorker, /request\.mode === 'navigate'/); assert.doesNotMatch(serviceWorker, /catch\(\(\) => caches\.match\('\.\/'\)\)/); });
+test('全局导航最右侧包含时间轴入口', () => { assert.match(index, /data-page="timeline"[\s\S]*时间轴/); assert.match(css, /timeline[^}]*order: 6/); });
+test('时间轴局部导航提供现在计划和关闭', () => { assert.match(timeline, /现在[\s\S]*计划[\s\S]*关闭/); assert.match(timeline, /location\.hash = '#\/'/); });
+test('计划页提供结构化删除、排序和拖拽排序', () => { assert.match(timeline, /data-preview-action="delete"/); assert.match(timeline, /data-preview-action="up"/); assert.match(timeline, /dragstart/); assert.match(timeline, /drop/); });
+test('当前事项区分下一项、逾期和全部完成', () => { assert.match(timeline, /mode: 'overdue'/); assert.match(timeline, /NEXT ·/); assert.match(timeline, /OVERDUE ·/); });

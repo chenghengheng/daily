@@ -1,5 +1,5 @@
-const CACHE = 'daily-lite-v2';
-const PRECACHE = ['./', './index.html', './css/style.css', './js/date-utils.js', './js/domain.js', './js/store.js', './js/app.js', './js/pages/wish.js', './js/pages/expense.js', './js/pages/countdown.js', './js/pages/dashboard.js', './js/pages/note.js', './manifest.json'];
+const CACHE = 'daily-lite-v4';
+const PRECACHE = ['./', './index.html', './css/style.css', './css/timeline.css?v=4', './js/date-utils.js', './js/domain.js', './js/timeline-domain.js?v=4', './js/store.js', './js/app.js', './js/pages/wish.js', './js/pages/expense.js', './js/pages/countdown.js', './js/pages/dashboard.js', './js/pages/note.js', './js/pages/timeline.js?v=4', './manifest.json'];
 self.addEventListener('install', event => { event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(PRECACHE))); });
 self.addEventListener('message', event => { if (event.data?.type === 'SKIP_WAITING') self.skipWaiting(); });
 self.addEventListener('activate', event => { event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(key => key !== CACHE).map(key => caches.delete(key)))).then(() => self.clients.claim())); });

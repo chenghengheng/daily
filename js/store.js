@@ -37,6 +37,32 @@ const Store = {
   getNoteItems() { return this._get('note') || []; },
   saveNoteItems(items) { return this._set('note', items); },
 
+  // ---- timeline planner ----
+  getTimelinePlan(date = this.today()) {
+    let data = null;
+    try { data = JSON.parse(localStorage.getItem('daily.timelinePlanner.v1')); } catch { data = null; }
+    if (!data || data.schemaVersion !== 1 || data.localDate !== date || !Array.isArray(data.items)) return null;
+    return data;
+  },
+  saveTimelinePlan(plan) {
+    let previous = null; let snapshots = [];
+    try {
+      previous = JSON.parse(localStorage.getItem('daily.timelinePlanner.v1'));
+      snapshots = JSON.parse(localStorage.getItem('daily.timelinePlanner.snapshots.v1')) || [];
+    } catch { snapshots = []; }
+    if (previous) {
+      snapshots.unshift(previous);
+    }
+    try {
+      localStorage.setItem('daily.timelinePlanner.snapshots.v1', JSON.stringify(snapshots.slice(0, 5)));
+      localStorage.setItem('daily.timelinePlanner.v1', JSON.stringify(plan));
+      return true;
+    } catch {
+      globalThis.Toast?.show?.('保存失败：本地空间可能已满，请先导出或清理数据。');
+      return false;
+    }
+  },
+
   purchaseWish(wishId, input = {}) {
     const wishesBefore = this.getWishItems();
     const expensesBefore = this.getExpenses();
@@ -70,23 +96,28 @@ const Store = {
       countdown: this.getCountdownEvents(),
       note: this.getNoteItems(),
       expenses: this.getExpenses(),
+      timelinePlanner: (() => { try { return JSON.parse(localStorage.getItem('daily.timelinePlanner.v1')); } catch { return null; } })(),
     };
   },
   importAll(data) {
     if (!DailyDomain.validateImport(data).ok) return false;
     const incoming = { ...data };
     if (data.version === 1 && !Object.hasOwn(data, 'expenses')) incoming.expenses = [];
+    if (Object.hasOwn(incoming, 'timelinePlanner') && incoming.timelinePlanner !== null && (incoming.timelinePlanner?.schemaVersion !== 1 || !Array.isArray(incoming.timelinePlanner.items))) return false;
     const fields = ['config','wish','countdown','note','expenses'];
     const before = Object.fromEntries(fields.map(key => [key, this._get(key)]));
     for (const key of fields) if (Object.hasOwn(incoming, key) && !this._set(key, incoming[key])) {
       for (const restoreKey of fields) if (before[restoreKey] === null) localStorage.removeItem(this._prefix + restoreKey); else this._set(restoreKey, before[restoreKey]);
       return false;
     }
+    if (Object.hasOwn(incoming, 'timelinePlanner') && incoming.timelinePlanner !== null && !this.saveTimelinePlan(incoming.timelinePlanner)) return false;
     this.clearObsoleteData();
     return true;
   },
   clearAll() {
-    ['config','wish','study','countdown','note','expenses','bgImage'].forEach(k => localStorage.removeItem(this._prefix + k));
+    ['config','wish','study','countdown','note','expenses','bgImage','timelinePlanner.v1','timelinePlanner.snapshots.v1'].forEach(k => localStorage.removeItem(this._prefix + k));
+    localStorage.removeItem('daily.timelinePlanner.v1');
+    localStorage.removeItem('daily.timelinePlanner.snapshots.v1');
   },
 
   // ---- wishlist-specific data IO ---- (用于清单页面独立导入导出)

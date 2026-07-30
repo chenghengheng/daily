@@ -16,3 +16,10 @@ test('达标购买标记 ready 且实际价格可不同于目标价', () => { St
 test('购买第二次写入失败时回滚消费', () => { Store.saveWishItems([DailyDomain.createWish({ id: 'w1', name: '耳机', price: 100, dailyProgress: 10, today: '2026-07-30' })]); const original = Store._set.bind(Store); let count = 0; Store._set = (key, value) => { count += 1; return count === 2 ? false : original(key, value); }; const result = Store.purchaseWish('w1', { actualPrice: 80, today: '2026-07-30' }); Store._set = original; assert.equal(result.ok, false); assert.equal(Store.getExpenses().length, 0); });
 test('v1 导入忽略学习与背景并迁移为空消费', () => { memory.set('daily_study', '[1]'); memory.set('daily_bgImage', '"x"'); assert.equal(Store.importAll({ version: 1, wish: [], study: [{ id: 1 }], bgImage: 'x' }), true); assert.equal(memory.has('daily_study'), false); assert.equal(memory.has('daily_bgImage'), false); assert.deepEqual(Store.exportAll().expenses, []); assert.equal(Object.hasOwn(Store.exportAll(), 'study'), false); });
 test('空数组可以覆盖且非法导入不覆盖现有数据', () => { Store.saveWishItems([{ id: 'w1', name: '旧', price: 1 }]); assert.equal(Store.importAll({ version: 2, wish: [] }), true); assert.equal(Store.getWishItems().length, 0); Store.saveWishItems([{ id: 'w2', name: '保留', price: 1 }]); assert.equal(Store.importAll({ version: 2, wish: {} }), false); assert.equal(Store.getWishItems()[0].name, '保留'); });
+test('时间轴按规格键名保存并保留最近五个快照', () => {
+  const base = { schemaVersion: 1, localDate: '2026-07-30', items: [], updatedAt: 'a' };
+  for (let index = 0; index < 7; index += 1) Store.saveTimelinePlan({ ...base, updatedAt: String(index) });
+  assert.equal(JSON.parse(memory.get('daily.timelinePlanner.v1')).updatedAt, '6');
+  assert.equal(JSON.parse(memory.get('daily.timelinePlanner.snapshots.v1')).length, 5);
+  assert.equal(Store.getTimelinePlan('2026-07-30').updatedAt, '6');
+});

@@ -18,7 +18,7 @@ const Store = {
   },
 
   // ---- wish items ----
-  getWishItems() { return this._get('wish') || []; },
+  getWishItems() { return (this._get('wish') || []).map(DailyDomain.normalizeWish); },
   saveWishItems(items) { this._set('wish', items); },
 
   // ---- countdown events ----
@@ -76,8 +76,5 @@ const Store = {
 
   // ---- helpers ----
   genId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); },
-  today() {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-  },
+  today(date) { return DateUtils.localDate(date); },
 };

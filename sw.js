@@ -2,6 +2,8 @@ const CACHE = 'daily-v10';
 const PRECACHE = [
   './',
   './css/style.css',
+  './js/date-utils.js',
+  './js/domain.js',
   './js/app.js',
   './js/store.js',
   './js/pages/wish.js',

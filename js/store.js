@@ -38,10 +38,30 @@ const Store = {
   saveNoteItems(items) { return this._set('note', items); },
 
   // ---- timeline planner ----
+  _isLegacyTimelineSample(plan) {
+    if (!plan || plan.startTimeMinutes !== 780 || plan.execution?.calibratedAt || !Array.isArray(plan.items) || plan.items.length !== 5) return false;
+    const expected = [['晚餐','normal',40,null],['地铁','normal',30,null],['缓冲','buffer',10,null],['会议','normal',60,900],['日记','normal',20,null]];
+    return plan.items.slice().sort((a, b) => a.order - b.order).every((item, index) => {
+      const [title, kind, duration, fixed] = expected[index];
+      return item.title === title && item.kind === kind && item.plannedDurationMinutes === duration && (item.fixedStartMinutes ?? null) === fixed && item.status === 'pending' && !item.note && !item.completedAt;
+    });
+  },
   getTimelinePlan(date = this.today()) {
+    let plans = {};
+    try { plans = JSON.parse(localStorage.getItem('daily.timelinePlanner.plans.v1')) || {}; } catch { plans = {}; }
     let data = null;
-    try { data = JSON.parse(localStorage.getItem('daily.timelinePlanner.v1')); } catch { data = null; }
+    if (plans[date]?.schemaVersion === 1 && Array.isArray(plans[date].items)) data = plans[date];
+    if (!data) try { data = JSON.parse(localStorage.getItem('daily.timelinePlanner.v1')); } catch { data = null; }
     if (!data || data.schemaVersion !== 1 || data.localDate !== date || !Array.isArray(data.items)) return null;
+    if (this._isLegacyTimelineSample(data)) {
+      delete plans[date];
+      try {
+        localStorage.setItem('daily.timelinePlanner.plans.v1', JSON.stringify(plans));
+        const legacy = JSON.parse(localStorage.getItem('daily.timelinePlanner.v1'));
+        if (legacy?.localDate === date && this._isLegacyTimelineSample(legacy)) localStorage.removeItem('daily.timelinePlanner.v1');
+      } catch { /* keep the in-memory migration even if storage cleanup fails */ }
+      return null;
+    }
     return data;
   },
   saveTimelinePlan(plan) {
@@ -54,13 +74,24 @@ const Store = {
       snapshots.unshift(previous);
     }
     try {
+      let plans = {};
+      try { plans = JSON.parse(localStorage.getItem('daily.timelinePlanner.plans.v1')) || {}; } catch { plans = {}; }
+      plans[plan.localDate] = plan;
       localStorage.setItem('daily.timelinePlanner.snapshots.v1', JSON.stringify(snapshots.slice(0, 5)));
-      localStorage.setItem('daily.timelinePlanner.v1', JSON.stringify(plan));
+      localStorage.setItem('daily.timelinePlanner.plans.v1', JSON.stringify(plans));
+      if (plan.localDate === this.today()) localStorage.setItem('daily.timelinePlanner.v1', JSON.stringify(plan));
       return true;
     } catch {
       globalThis.Toast?.show?.('保存失败：本地空间可能已满，请先导出或清理数据。');
       return false;
     }
+  },
+  getTimelinePlans(fromDate = this.today()) {
+    let plans = {};
+    try { plans = JSON.parse(localStorage.getItem('daily.timelinePlanner.plans.v1')) || {}; } catch { plans = {}; }
+    const legacy = (() => { try { return JSON.parse(localStorage.getItem('daily.timelinePlanner.v1')); } catch { return null; } })();
+    if (legacy?.schemaVersion === 1 && Array.isArray(legacy.items) && !plans[legacy.localDate]) plans[legacy.localDate] = legacy;
+    return Object.values(plans).filter(plan => plan?.schemaVersion === 1 && Array.isArray(plan.items) && plan.localDate >= fromDate).sort((a, b) => a.localDate.localeCompare(b.localDate));
   },
 
   purchaseWish(wishId, input = {}) {
@@ -88,6 +119,14 @@ const Store = {
 
   // ---- full data IO ----
   exportAll() {
+    const timelinePlans = (() => {
+      let plans = {};
+      try { plans = JSON.parse(localStorage.getItem('daily.timelinePlanner.plans.v1')) || {}; } catch { plans = {}; }
+      let legacy = null;
+      try { legacy = JSON.parse(localStorage.getItem('daily.timelinePlanner.v1')); } catch { legacy = null; }
+      if (legacy?.schemaVersion === 1 && Array.isArray(legacy.items)) plans[legacy.localDate] = legacy;
+      return plans;
+    })();
     return {
       version: 2,
       exportedAt: new Date().toISOString(),
@@ -97,6 +136,7 @@ const Store = {
       note: this.getNoteItems(),
       expenses: this.getExpenses(),
       timelinePlanner: (() => { try { return JSON.parse(localStorage.getItem('daily.timelinePlanner.v1')); } catch { return null; } })(),
+      timelinePlans,
     };
   },
   importAll(data) {
@@ -104,13 +144,20 @@ const Store = {
     const incoming = { ...data };
     if (data.version === 1 && !Object.hasOwn(data, 'expenses')) incoming.expenses = [];
     if (Object.hasOwn(incoming, 'timelinePlanner') && incoming.timelinePlanner !== null && (incoming.timelinePlanner?.schemaVersion !== 1 || !Array.isArray(incoming.timelinePlanner.items))) return false;
+    if (Object.hasOwn(incoming, 'timelinePlans') && (!incoming.timelinePlans || Array.isArray(incoming.timelinePlans) || typeof incoming.timelinePlans !== 'object' || Object.entries(incoming.timelinePlans).some(([date, plan]) => plan?.schemaVersion !== 1 || plan.localDate !== date || !Array.isArray(plan.items)))) return false;
     const fields = ['config','wish','countdown','note','expenses'];
     const before = Object.fromEntries(fields.map(key => [key, this._get(key)]));
     for (const key of fields) if (Object.hasOwn(incoming, key) && !this._set(key, incoming[key])) {
       for (const restoreKey of fields) if (before[restoreKey] === null) localStorage.removeItem(this._prefix + restoreKey); else this._set(restoreKey, before[restoreKey]);
       return false;
     }
-    if (Object.hasOwn(incoming, 'timelinePlanner') && incoming.timelinePlanner !== null && !this.saveTimelinePlan(incoming.timelinePlanner)) return false;
+    if (Object.hasOwn(incoming, 'timelinePlans')) {
+      try {
+        localStorage.setItem('daily.timelinePlanner.plans.v1', JSON.stringify(incoming.timelinePlans));
+        const todayPlan = incoming.timelinePlans[this.today()];
+        if (todayPlan) localStorage.setItem('daily.timelinePlanner.v1', JSON.stringify(todayPlan)); else localStorage.removeItem('daily.timelinePlanner.v1');
+      } catch { return false; }
+    } else if (Object.hasOwn(incoming, 'timelinePlanner') && incoming.timelinePlanner !== null && !this.saveTimelinePlan(incoming.timelinePlanner)) return false;
     this.clearObsoleteData();
     return true;
   },
@@ -118,6 +165,7 @@ const Store = {
     ['config','wish','study','countdown','note','expenses','bgImage','timelinePlanner.v1','timelinePlanner.snapshots.v1'].forEach(k => localStorage.removeItem(this._prefix + k));
     localStorage.removeItem('daily.timelinePlanner.v1');
     localStorage.removeItem('daily.timelinePlanner.snapshots.v1');
+    localStorage.removeItem('daily.timelinePlanner.plans.v1');
   },
 
   // ---- wishlist-specific data IO ---- (用于清单页面独立导入导出)

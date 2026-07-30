@@ -123,7 +123,7 @@ const App = {
       case 'expense': Expense.render(container); break;
       case 'countdown': Countdown.render(container); break;
       case 'note': Note.render(container); break;
-      case 'timeline': TimelinePage.render(container, hash.includes('/plan') ? 'plan' : 'now'); break;
+      case 'timeline': TimelinePage.render(container, hash.includes('/plan') ? 'plan' : hash.includes('/today') ? 'today' : 'now'); break;
     }
 
     animatePageEnter(container);

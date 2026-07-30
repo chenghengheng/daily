@@ -4,13 +4,17 @@ const TimelinePage = {
   schedule: [],
   undo: null,
 
-  sampleText: '40min 晚餐\n30min 地铁\n10min ～缓冲\n@15:00 60min 会议\n20min 日记',
   phrases: ['Make room for the day.','Make room for what matters.','Give the day some shape.','One thing at a time.','Let the day unfold.','Today, in gentle steps.','Pace the day your way.','Leave space between things.'],
 
   escape(value) { return String(value ?? '').replace(/[&<>"']/g, char => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;', "'":'&#39;' }[char])); },
   load() {
     this.plan = Store.getTimelinePlan();
-    if (!this.plan) this.plan = TimelineDomain.createPlan(this.sampleText, 780).plan;
+    if (!this.plan) this.plan = TimelineDomain.createPlan('', this.localMinutes()).plan;
+    else {
+      const beforeOrder = this.plan.items.map(item => item.id).join('|');
+      this.plan = TimelineDomain.normalizePlanOrder(this.plan);
+      if (this.plan.items.map(item => item.id).join('|') !== beforeOrder) Store.saveTimelinePlan(this.plan);
+    }
     this.schedule = TimelineDomain.schedule(this.plan);
   },
   save() { if (!Store.saveTimelinePlan(this.plan)) return false; this.schedule = TimelineDomain.schedule(this.plan); return true; },
@@ -18,7 +22,7 @@ const TimelinePage = {
   render(container, view = 'now') {
     this.container = container; this.load();
     container.innerHTML = `<div id="timeline-planner"></div>`;
-    if (view === 'plan') this.renderPlan(); else this.renderNow();
+    if (view === 'plan') this.renderPlan(); else if (view === 'today') this.renderTodayPlan(); else this.renderNow();
   },
   dateLabel() {
     const date = new Date();
@@ -50,14 +54,26 @@ const TimelinePage = {
     const root = this.container.querySelector('#timeline-planner'); const current = this.current();
     const start = this.formatTime(this.plan.startTimeMinutes);
     const completeTitle = this.plan.items.length ? '今日已完成' : '还没有计划';
-    const completeHint = this.plan.items.length ? '给今天留一点余白' : '到“计划”写下今天的安排';
+    const completeHint = this.plan.items.length ? '给今天留一点余白' : '点右上角“编辑”写下今天的安排';
     const currentHtml = current ? this.currentCard(current) : `<section class="now"><div class="now-label small">NOW · ${this.clockNow()}</div><div class="now-main"><div><h2 class="serif">${completeTitle}</h2><p class="now-label">${completeHint}</p></div></div></section>`;
     root.innerHTML = `<section class="phone" aria-label="时间轴计划器">
-      <header class="top"><div><p class="kicker small">${this.dateLabel()}</p><h2 class="serif">Daybook</h2></div><button class="edit" type="button" data-action="plan">✎ 编辑</button></header>
+      <header class="top"><div><p class="kicker small">${this.dateLabel()}</p><h2 class="serif">Daybook</h2></div><button class="edit" type="button" data-action="edit-today">✎ 编辑</button></header>
       <div class="intro"><h2 class="serif">${this.escape(this.phrase())}</h2><span class="start-display small">START<br><strong>${start}</strong></span></div>
-      ${currentHtml}
-      <div class="timeline-head"><h3 class="serif">Up next</h3><p class="small">点击中间展开备注</p></div>
-      <div class="scroll-region"><div class="timeline">${this.timelineHtml()}</div></div>
+      <div class="day-scroll">
+        ${currentHtml}
+        <section class="timeline-section" aria-label="今日时间轴">
+          <div class="timeline-head"><h3 class="serif">Up next</h3><p class="small">点击中间展开备注</p></div>
+          <div class="timeline">${this.timelineHtml()}</div>
+        </section>
+      </div>
+      <div class="calibration-sheet" role="dialog" aria-modal="true" aria-labelledby="calibration-title" hidden>
+        <div class="calibration-paper">
+          <p class="kicker small">ADJUST THE DAY</p>
+          <h3 class="serif" id="calibration-title">校准计划</h3>
+          <p class="calibration-message"></p>
+          <div class="calibration-actions"><button class="cancel-calibration" type="button">取消</button><button class="confirm-calibration" type="button">确认校准</button></div>
+        </div>
+      </div>
       ${this.bottom('now')}
       <div class="action-toast" role="status"><span class="toast-text"></span><button class="undo-action" type="button">撤销</button></div>
     </section>`;
@@ -72,14 +88,14 @@ const TimelinePage = {
     return `<section class="now" aria-label="当前事项"><div class="now-label small">${label}</div><div class="now-main"><div><h2 class="serif">${this.escape(item.kind === 'buffer' ? '缓冲时间' : item.title)}</h2><p class="now-label">${this.formatTime(slot.startAbsoluteMinutes)}—${this.formatTime(slot.endAbsoluteMinutes)}</p></div><div class="minutes">${remaining}<small>${unit}</small></div></div><div class="progress" aria-label="已完成约${Math.round(elapsed / total * 100)}%"><span style="width:${elapsed / total * 100}%"></span></div><div class="now-actions"><button class="now-primary" type="button" data-action="complete-current">✓ 完成</button><button class="now-secondary" type="button" data-action="calibrate">↻ 校准</button></div></section>`;
   },
   timelineHtml() {
-    if (!this.plan.items.length) return '<p class="empty-timeline">还没有计划。点“计划”开始安排今天。</p>';
+    if (!this.plan.items.length) return '<p class="empty-timeline">还没有计划。点右上角“编辑”开始安排今天。</p>';
     return this.plan.items.map((item, index) => {
       const slot = this.schedule[index]; const classes = ['entry', item.kind === 'buffer' ? 'buffer' : '', Number.isFinite(item.fixedStartMinutes) ? 'fixed' : '', /日记|记录|写作|阅读/.test(item.title) ? 'journal' : '', item.status === 'completed' ? 'is-complete' : '', slot.conflict ? 'conflict' : ''].filter(Boolean).join(' ');
       const type = Number.isFinite(item.fixedStartMinutes) ? '固定时间' : item.kind === 'buffer' ? '可消耗缓冲' : '普通时间块';
       return `<section class="${classes}" data-id="${this.escape(item.id)}"><span class="time small">${Number.isFinite(item.fixedStartMinutes) ? `<strong>${this.formatTime(slot.startAbsoluteMinutes)}</strong>` : this.formatTime(slot.startAbsoluteMinutes)}</span><span class="tick" aria-hidden="true"></span><div class="ticket">
-        <button class="stub left-stub" type="button" aria-label="向右拖动删除${this.escape(item.title)}"><span class="stub-normal"><span aria-hidden="true">${TimelineDomain.iconFor(item)}</span><span class="stub-hint small">→</span></span><span class="tear-action"><span>⌫</span><span class="small">删除</span></span></button>
+        <button class="stub left-stub" type="button" aria-label="向右拖动删除${this.escape(item.title)}"><span class="stub-normal"><span aria-hidden="true">${TimelineDomain.iconFor(item)}</span></span><span class="tear-action"><span>⌫</span><span class="small">删除</span></span></button>
         <button class="ticket-main" type="button" aria-expanded="false"><span class="ticket-title">${this.escape(item.kind === 'buffer' ? '缓冲' : item.title)}</span><span class="tap-hint small">点击查看备注</span>${slot.conflict ? `<span class="conflict-note">⚠ 冲突 ${slot.overlapMinutes} 分钟</span>` : ''}</button>
-        <button class="stub right-stub" type="button" aria-label="向左拖动完成${this.escape(item.title)}"><span class="stub-normal"><span>${item.kind === 'buffer' ? (item.remainingDurationMinutes ?? item.plannedDurationMinutes) : item.plannedDurationMinutes}</span><span class="stub-hint small">MIN ←</span></span><span class="tear-action"><span>✓</span><span class="small">完成</span></span></button><span class="done-stamp small">DONE</span></div>
+        <button class="stub right-stub" type="button" aria-label="向左拖动完成${this.escape(item.title)}"><span class="stub-normal"><span>${item.kind === 'buffer' ? (item.remainingDurationMinutes ?? item.plannedDurationMinutes) : item.plannedDurationMinutes}</span><span class="stub-hint small">MIN</span></span><span class="tear-action"><span>✓</span><span class="small">完成</span></span></button><span class="done-stamp small">DONE</span></div>
         <div class="detail"><div class="detail-meta small"><span>${this.formatTime(slot.startAbsoluteMinutes)}—${this.formatTime(slot.endAbsoluteMinutes)}</span><span>${type}</span></div>${slot.idleBeforeMinutes ? `<p class="small">此前空档 ${slot.idleBeforeMinutes} 分钟</p>` : ''}<label class="note-label small">备注</label><textarea class="note" aria-label="${this.escape(item.title)}备注">${this.escape(item.note)}</textarea><div class="detail-actions"><button class="alt-complete" type="button">完成</button><button class="alt-delete" type="button">删除</button><button class="save-note" type="button">保存备注</button></div></div>
       </section>`;
     }).join('');
@@ -92,10 +108,12 @@ const TimelinePage = {
       if (button.dataset.view === 'close') location.hash = '#/';
       else location.hash = button.dataset.view === 'plan' ? '#/timeline/plan' : '#/timeline';
     }));
-    root.querySelector('[data-action="plan"]')?.addEventListener('click', () => { location.hash = '#/timeline/plan'; });
+    root.querySelector('[data-action="edit-today"]')?.addEventListener('click', () => { location.hash = '#/timeline/today'; });
   },
   bindNow() {
     const root = this.container.querySelector('#timeline-planner'); const entries = [...root.querySelectorAll('.entry')];
+    const calibrationSheet = root.querySelector('.calibration-sheet');
+    let pendingCalibration = null;
     entries.forEach(entry => {
       const main = entry.querySelector('.ticket-main');
       main.addEventListener('click', () => { const open = !entry.classList.contains('is-open'); entries.forEach(row => { row.classList.remove('is-open'); row.querySelector('.ticket-main').setAttribute('aria-expanded','false'); }); if (open) { entry.classList.add('is-open'); main.setAttribute('aria-expanded','true'); } });
@@ -110,8 +128,18 @@ const TimelinePage = {
       const current = this.current(); if (!current) return;
       const offset = this.localMinutes() - current.slot.startAbsoluteMinutes;
       const offsetText = offset >= 0 ? `延误 ${offset} 分钟` : `提前 ${Math.abs(offset)} 分钟`;
-      if (!confirm(`从现在继续？将按当前${offsetText}校准，并优先消耗缓冲。`)) return;
-      const before = JSON.parse(JSON.stringify(this.plan)); this.plan = TimelineDomain.calibrate(this.plan, offset, current.item.id).plan; this.save(); this.undo = () => { this.plan = before; this.save(); this.renderNow(); }; this.renderNow(); this.showAction('已校准计划');
+      pendingCalibration = { current, offset, before: JSON.parse(JSON.stringify(this.plan)) };
+      calibrationSheet.querySelector('.calibration-message').textContent = `从现在继续，将按当前${offsetText}校准，并优先消耗后续缓冲。`;
+      calibrationSheet.hidden = false;
+      calibrationSheet.querySelector('.confirm-calibration').focus();
+    });
+    root.querySelector('.cancel-calibration').addEventListener('click', () => { pendingCalibration = null; calibrationSheet.hidden = true; });
+    root.querySelector('.confirm-calibration').addEventListener('click', () => {
+      if (!pendingCalibration) return;
+      const { current, offset, before } = pendingCalibration;
+      this.plan = TimelineDomain.calibrate(this.plan, offset, current.item.id).plan;
+      this.save(); this.undo = () => { this.plan = before; this.save(); this.renderNow(); };
+      pendingCalibration = null; this.renderNow(); this.showAction('已校准计划');
     });
     root.querySelector('.undo-action').addEventListener('click', () => { this.undo?.(); this.undo = null; });
   },
@@ -132,18 +160,28 @@ const TimelinePage = {
   remove(id) { const before = JSON.parse(JSON.stringify(this.plan)); const index = this.plan.items.findIndex(item => item.id === id); if (index < 0) return; this.plan.items.splice(index, 1); this.plan.items.forEach((item, order) => { item.order = order; }); this.touch(); this.undo = () => { this.plan = before; this.save(); this.renderNow(); }; this.renderNow(); this.showAction('已删除该条目'); },
   showAction(message) { const toast = this.container.querySelector('.action-toast'); if (!toast) return; toast.querySelector('.toast-text').textContent = message; toast.classList.add('is-visible'); },
 
+  renderTodayPlan() {
+    const root = this.container.querySelector('#timeline-planner'); const text = this.plan.sourceText || TimelineDomain.exportText(this.plan.items); const startMinutes = this.plan.items.length ? this.plan.startTimeMinutes : this.localMinutes(); const start = this.formatTime(startMinutes).replace(/^次日(?:\+\d+)? /,'');
+    root.innerHTML = `<section class="phone plan-page" aria-label="编辑今日时间轴计划"><header class="top"><div><p class="kicker small">${this.dateLabel()}</p><h2 class="serif">Daybook</h2></div></header><div class="plan-scroll"><h2 class="plan-title serif">Plan today.</h2><p class="plan-lead">编辑今天的任务，保存后返回“现在”。</p><div class="plan-field"><label for="timeline-start">计划开始时间</label><input id="timeline-start" type="time" value="${start}"></div><div class="plan-field"><label for="timeline-source">每行一项，例如：40min 晚餐</label><textarea id="timeline-source" spellcheck="false">${this.escape(text)}</textarea><div class="plan-errors" role="alert"></div></div><div class="plan-preview"><h3 class="serif">时间预览</h3><div class="preview-list"></div></div><div class="plan-buttons"><button class="primary save-today-plan" type="button">保存今日计划</button></div></div>${this.bottom('now')}</section>`;
+    this.bindCommon(); const textarea = root.querySelector('#timeline-source'); const input = root.querySelector('#timeline-start'); const preview = () => this.updatePreview(textarea.value, input.value);
+    textarea.addEventListener('input', preview); input.addEventListener('input', preview); preview(); this.bindPreviewEditing(textarea, preview);
+    root.querySelector('.save-today-plan').addEventListener('click', () => { const parsed = TimelineDomain.parseText(textarea.value); if (parsed.errors.length && !confirm('有无法识别的行，仍保存其他合法项目吗？')) return; this.plan = TimelineDomain.createPlan(textarea.value, TimelineDomain.parseClock(input.value) ?? 780, this.plan, DateUtils.localDate()).plan; if (!this.save()) return; location.hash = '#/timeline'; });
+  },
+
   renderPlan() {
-    const root = this.container.querySelector('#timeline-planner'); const text = this.plan.sourceText || TimelineDomain.exportText(this.plan.items); const start = this.formatTime(this.plan.startTimeMinutes).replace(/^次日(?:\+\d+)? /,'');
-    root.innerHTML = `<section class="phone plan-page" aria-label="编辑时间轴计划"><header class="top"><div><p class="kicker small">${this.dateLabel()}</p><h2 class="serif">Daybook</h2></div></header><div class="plan-scroll"><h2 class="plan-title serif">Plan the day.</h2><div class="plan-field"><label for="timeline-start">计划开始时间</label><input id="timeline-start" type="time" value="${start}"></div><div class="plan-field"><label for="timeline-source">每行一项，例如：40min 晚餐</label><textarea id="timeline-source" spellcheck="false">${this.escape(text)}</textarea><div class="plan-errors" role="alert"></div></div><div class="plan-preview"><h3 class="serif">时间预览</h3><div class="preview-list"></div></div><div class="plan-buttons"><button class="primary save-plan" type="button">保存计划</button><button class="copy-plan" type="button">复制规范文本</button><button class="reset-plan" type="button">重置今日计划</button></div></div>${this.bottom('plan')}</section>`;
-    this.bindCommon(); const textarea = root.querySelector('#timeline-source'); const input = root.querySelector('#timeline-start');
+    const root = this.container.querySelector('#timeline-planner'); const tomorrow = DateUtils.addDays(DateUtils.localDate(), 1); const futurePlans = Store.getTimelinePlans(tomorrow); const selectedDate = tomorrow; const text = ''; const start = '';
+    root.innerHTML = `<section class="phone plan-page" aria-label="后续时间轴计划"><header class="top"><div><p class="kicker small">UPCOMING PLANS</p><h2 class="serif">Daybook</h2></div></header><div class="plan-scroll"><h2 class="plan-title serif">Plan ahead.</h2><p class="plan-lead">为之后的日期添加计划；日期到来时会自动显示在“现在”。</p><div class="future-plans" aria-label="后续计划">${this.futurePlansHtml(futurePlans)}</div><div class="future-editor"><div class="plan-field"><label for="timeline-date">计划日期</label><input id="timeline-date" type="date" min="${tomorrow}" value="${selectedDate}"></div><div class="plan-field"><label for="timeline-start">计划开始时间</label><input id="timeline-start" type="time" value="${start}"></div><div class="plan-field"><label for="timeline-source">每行一项，例如：40min 晚餐</label><textarea id="timeline-source" spellcheck="false">${this.escape(text)}</textarea><div class="plan-errors" role="alert"></div></div><div class="plan-preview"><h3 class="serif">时间预览</h3><div class="preview-list"></div></div><div class="plan-buttons"><button class="primary save-plan" type="button">保存后续计划</button></div></div></div>${this.bottom('plan')}</section>`;
+    this.bindCommon(); const textarea = root.querySelector('#timeline-source'); const input = root.querySelector('#timeline-start'); const dateInput = root.querySelector('#timeline-date');
     const preview = () => this.updatePreview(textarea.value, input.value); textarea.addEventListener('input', preview); input.addEventListener('input', preview); preview();
-    root.querySelector('.save-plan').addEventListener('click', () => { const parsed = TimelineDomain.parseText(textarea.value); if (parsed.errors.length && !confirm('有无法识别的行，仍保存其他合法项目吗？')) return; const startMinutes = TimelineDomain.parseClock(input.value); const result = TimelineDomain.createPlan(textarea.value, startMinutes ?? 780, this.plan); this.plan = result.plan; this.save(); location.hash = '#/timeline'; });
-    root.querySelector('.copy-plan').addEventListener('click', async () => { const parsed = TimelineDomain.createPlan(textarea.value, TimelineDomain.parseClock(input.value) ?? 780, this.plan); try { await navigator.clipboard.writeText(parsed.plan.sourceText); Toast.show('已复制规范文本'); } catch { Toast.show('复制失败，请手动选择文本'); } });
-    root.querySelector('.reset-plan').addEventListener('click', () => {
-      if (!confirm('重置今日计划会恢复示例并清除今日执行状态，继续吗？')) return;
-      this.plan = TimelineDomain.createPlan(this.sampleText, 780).plan;
-      this.save(); textarea.value = this.plan.sourceText; input.value = '13:00'; preview(); Toast.show('今日计划已重置');
+    dateInput.addEventListener('change', () => {
+      const existing = Store.getTimelinePlan(dateInput.value); textarea.value = existing?.sourceText || ''; input.value = this.formatTime(existing?.startTimeMinutes ?? 780).replace(/^次日(?:\+\d+)? /,''); preview();
     });
+    root.querySelector('.save-plan').addEventListener('click', () => { const parsed = TimelineDomain.parseText(textarea.value); const startMinutes = TimelineDomain.parseClock(input.value); if (!dateInput.value || dateInput.value < tomorrow) { Toast.show('请选择今天之后的日期'); return; } if (startMinutes === null) { Toast.show('请选择计划开始时间'); return; } if (parsed.errors.length && !confirm('有无法识别的行，仍保存其他合法项目吗？')) return; const existing = Store.getTimelinePlan(dateInput.value); const result = TimelineDomain.createPlan(textarea.value, startMinutes, existing, dateInput.value); if (!Store.saveTimelinePlan(result.plan)) return; root.querySelector('.future-plans').innerHTML = this.futurePlansHtml(Store.getTimelinePlans(tomorrow)); textarea.value = ''; input.value = ''; preview(); Toast.show('后续计划已保存'); });
+    root.querySelector('.future-plans').addEventListener('click', event => { const card = event.target.closest('[data-plan-date]'); if (!card) return; const existing = Store.getTimelinePlan(card.dataset.planDate); if (!existing) return; dateInput.value = existing.localDate; input.value = this.formatTime(existing.startTimeMinutes).replace(/^次日(?:\+\d+)? /,''); textarea.value = existing.sourceText; preview(); root.querySelector('.future-editor').scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+    this.bindPreviewEditing(textarea, preview);
+  },
+  bindPreviewEditing(textarea, preview) {
+    const root = this.container.querySelector('#timeline-planner');
     root.querySelector('.preview-list').addEventListener('click', event => {
       const action = event.target.closest('[data-preview-action]'); if (!action) return;
       const parsed = TimelineDomain.parseText(textarea.value); if (parsed.errors.length) { Toast.show('请先修正逐行错误再调整顺序'); return; }
@@ -162,9 +200,15 @@ const TimelinePage = {
       const targetIndex = Number(row.dataset.previewIndex); const [moved] = parsed.items.splice(draggedIndex, 1); parsed.items.splice(targetIndex, 0, moved); parsed.items.forEach((item, order) => { item.order = order; }); textarea.value = TimelineDomain.exportText(parsed.items); draggedIndex = null; preview();
     });
   },
+  futurePlansHtml(plans) {
+    if (!plans.length) return '<p class="empty-future">还没有后续计划。先选择日期并写下安排。</p>';
+    return plans.map(plan => { const date = DateUtils.parseLocalDate(plan.localDate); const label = date ? new Intl.DateTimeFormat('zh-CN', { month: 'long', day: 'numeric', weekday: 'short' }).format(date) : plan.localDate; const schedule = TimelineDomain.schedule(plan); const preview = plan.items.slice(0, 3).map((item, index) => `<span>${this.formatTime(schedule[index].startAbsoluteMinutes)} ${this.escape(item.kind === 'buffer' ? '缓冲' : item.title)}</span>`).join(''); return `<button class="future-card" type="button" data-plan-date="${plan.localDate}"><span class="future-date serif">${this.escape(label)}</span><span class="future-count small">${plan.items.length} 项 · ${this.formatTime(plan.startTimeMinutes)} 开始</span><span class="future-preview">${preview || '<span>空计划</span>'}</span></button>`; }).join('');
+  },
   updatePreview(text, startValue) {
-    const root = this.container.querySelector('#timeline-planner'); const parsed = TimelineDomain.parseText(text); const temporary = TimelineDomain.createPlan(text, TimelineDomain.parseClock(startValue) ?? 780, this.plan).plan; const schedule = TimelineDomain.schedule(temporary);
+    const root = this.container.querySelector('#timeline-planner'); const parsed = TimelineDomain.parseText(text); const startMinutes = TimelineDomain.parseClock(startValue);
     root.querySelector('.plan-errors').innerHTML = parsed.errors.map(item => `<p>第 ${item.lineNumber} 行：${this.escape(item.message)}</p>`).join('');
+    if (startMinutes === null) { root.querySelector('.preview-list').innerHTML = '<p class="empty-timeline">选择开始时间后显示预览。</p>'; return; }
+    const temporary = TimelineDomain.createPlan(text, startMinutes, this.plan).plan; const schedule = TimelineDomain.schedule(temporary);
     const controlsDisabled = parsed.errors.length ? 'disabled' : '';
     root.querySelector('.preview-list').innerHTML = temporary.items.length ? temporary.items.map((item, index) => `<div class="preview-row" draggable="${parsed.errors.length ? 'false' : 'true'}" data-preview-index="${index}"><span class="preview-time small">${this.formatTime(schedule[index].startAbsoluteMinutes)}</span><span class="preview-name">${TimelineDomain.iconFor(item)} ${this.escape(item.kind === 'buffer' ? '缓冲' : item.title)}<small>${item.plannedDurationMinutes} MIN</small></span><span class="preview-actions"><button type="button" data-preview-action="up" data-index="${index}" ${controlsDisabled} aria-label="上移${this.escape(item.title)}">↑</button><button type="button" data-preview-action="down" data-index="${index}" ${controlsDisabled} aria-label="下移${this.escape(item.title)}">↓</button><button type="button" data-preview-action="delete" data-index="${index}" ${controlsDisabled} aria-label="删除${this.escape(item.title)}">×</button></span></div>`).join('') : '<p class="empty-timeline">合法项目会显示在这里。</p>';
   },

@@ -14,9 +14,9 @@
 
   function durationMatches(text) {
     const patterns = [
-      /\d+(?:\.\d+)?\s*h(?:ours?)?(?:\s*\d+\s*(?:min(?:utes?)?))?/gi,
-      /\d+\s*小时(?:\s*\d+\s*分钟)?/g,
-      /\d+(?:\.\d+)?\s*(?:min(?:utes?)?|分钟)/gi,
+      /\d+(?:\.\d+)?\s*h(?:ours?)?(?:\s*\d+\s*(?:min(?:utes?)?|m))?/gi,
+      /\d+\s*小时(?:\s*\d+\s*(?:分钟|分))?/g,
+      /\d+(?:\.\d+)?\s*(?:min(?:utes?)?|m|分钟|分)/gi,
     ];
     const matches = [];
     patterns.forEach(pattern => {
@@ -34,7 +34,7 @@
     const normalized = value.toLowerCase().replace(/\s+/g, '');
     let minutes = 0;
     const hours = normalized.match(/(\d+(?:\.\d+)?)(?:h(?:ours?)?|小时)/);
-    const mins = normalized.match(/(\d+)(?:min(?:utes?)?|分钟)/);
+    const mins = normalized.match(/(\d+)(?:min(?:utes?)?|m|分钟|分)/);
     if (hours) minutes += Number(hours[1]) * 60;
     if (mins) minutes += Number(mins[1]);
     return Math.round(minutes);
@@ -43,7 +43,7 @@
   function parseLine(raw, lineNumber = 1) {
     const source = String(raw || '').trim();
     if (!source) return { ignored: true, lineNumber, raw: String(raw || '') };
-    if (/-\s*\d+(?:\.\d+)?\s*(?:min|分钟|h|小时)/i.test(source)) return error('INVALID_DURATION', '时长必须大于 0', raw, lineNumber);
+    if (/-\s*\d+(?:\.\d+)?\s*(?:m|min|分|分钟|h|小时)/i.test(source)) return error('INVALID_DURATION', '时长必须大于 0', raw, lineNumber);
     const fixedTokens = [...source.matchAll(/@\S+/g)];
     if (fixedTokens.length > 1) return error('MULTIPLE_FIXED_TIMES', '一行只能有一个固定时间', raw, lineNumber);
     let fixedStartMinutes;
@@ -53,7 +53,7 @@
     }
     const durations = durationMatches(source);
     if (!durations.length) {
-      if (/[-+]?\d+(?:\.\d+)?\s*(?:min|分钟|h|小时)/i.test(source)) return error('INVALID_DURATION', '时长必须大于 0', raw, lineNumber);
+      if (/[-+]?\d+(?:\.\d+)?\s*(?:m|min|分|分钟|h|小时)/i.test(source)) return error('INVALID_DURATION', '时长必须大于 0', raw, lineNumber);
       return error('MISSING_DURATION', '缺少时长，例如 30min', raw, lineNumber);
     }
     if (durations.length > 1) return error('MULTIPLE_DURATIONS', '一行只能有一个时长', raw, lineNumber);
@@ -84,12 +84,44 @@
     return lifted;
   }
 
+  function effectiveDuration(item) {
+    return item.kind === 'buffer' ? Math.max(0, item.remainingDurationMinutes ?? item.plannedDurationMinutes) : item.plannedDurationMinutes;
+  }
+
+  function movePastFixedFirst(items, startTimeMinutes) {
+    const pastFixed = items.filter(item => Number.isFinite(item.fixedStartMinutes) && liftFixed(item.fixedStartMinutes, startTimeMinutes) <= startTimeMinutes)
+      .sort((a, b) => liftFixed(a.fixedStartMinutes, startTimeMinutes) - liftFixed(b.fixedStartMinutes, startTimeMinutes));
+    const pastIds = new Set(pastFixed.map(item => item.id));
+    return pastFixed.concat(items.filter(item => !pastIds.has(item.id)));
+  }
+
+  function reorderFutureAroundFixed(items, initialCursor) {
+    const remaining = items.slice(); const result = []; let cursor = initialCursor;
+    while (remaining.length) {
+      const first = remaining[0];
+      const anchors = remaining.map((item, index) => Number.isFinite(item.fixedStartMinutes) ? { item, index, start: liftFixed(item.fixedStartMinutes, cursor) } : null)
+        .filter(Boolean).sort((a, b) => a.start - b.start || a.index - b.index);
+      let selectedIndex = 0;
+      if (anchors.length) {
+        const anchor = anchors[0];
+        if (Number.isFinite(first.fixedStartMinutes) || cursor + effectiveDuration(first) > anchor.start) selectedIndex = anchor.index;
+      }
+      const [item] = remaining.splice(selectedIndex, 1); const duration = effectiveDuration(item);
+      if (Number.isFinite(item.fixedStartMinutes)) {
+        const start = liftFixed(item.fixedStartMinutes, cursor);
+        cursor = Math.max(start + duration, cursor + duration);
+      } else cursor += duration;
+      result.push(item);
+    }
+    return result;
+  }
+
   function schedule(plan) {
     let cursor = Number(plan?.startTimeMinutes) || 0;
     const items = (plan?.items || []).slice().sort((a, b) => a.order - b.order);
     const calibrationOffset = Number(plan?.execution?.remainingOffsetMinutes) || 0;
     const calibrationAfter = plan?.execution?.calibrationAfterItemId;
-    let calibrationApplied = false;
+    let calibrationApplied = false; let leadingPastFixed = true;
     return items.map((item, index) => {
       const shouldApplyCalibration = !calibrationApplied && calibrationOffset && (
         calibrationAfter ? items[index - 1]?.id === calibrationAfter : index === 0
@@ -98,15 +130,19 @@
         cursor = Math.max(0, cursor + calibrationOffset);
         calibrationApplied = true;
       }
-      const duration = item.kind === 'buffer' ? Math.max(0, item.remainingDurationMinutes ?? item.plannedDurationMinutes) : item.plannedDurationMinutes;
+      const duration = effectiveDuration(item);
+      const cursorBeforeItem = cursor;
       let start = cursor; let idleBeforeMinutes = 0; let overlapMinutes = 0;
       if (Number.isFinite(item.fixedStartMinutes)) {
         start = liftFixed(item.fixedStartMinutes, cursor);
-        if (cursor < start) idleBeforeMinutes = start - cursor;
-        else if (cursor > start) overlapMinutes = cursor - start;
+        const isLeadingPastFixed = leadingPastFixed && start <= plan.startTimeMinutes;
+        if (!isLeadingPastFixed && cursor < start) idleBeforeMinutes = start - cursor;
+        else if (!isLeadingPastFixed && cursor > start) overlapMinutes = cursor - start;
       }
       const end = start + duration;
-      cursor = end;
+      const isLeadingPastFixed = leadingPastFixed && Number.isFinite(item.fixedStartMinutes) && start <= plan.startTimeMinutes;
+      cursor = Number.isFinite(item.fixedStartMinutes) ? (isLeadingPastFixed ? Math.max(end, cursorBeforeItem) : Math.max(end, cursorBeforeItem + duration)) : end;
+      if (!isLeadingPastFixed) leadingPastFixed = false;
       return { itemId: item.id, startAbsoluteMinutes: start, endAbsoluteMinutes: end, startDayOffset: Math.floor(start / 1440), endDayOffset: Math.floor((Math.max(start, end - 1)) / 1440), conflict: overlapMinutes > 0, overlapMinutes, idleBeforeMinutes };
     });
   }
@@ -129,6 +165,12 @@
         if (!remaining) break;
       }
     }
+    const baseSchedule = schedule(next);
+    const prefix = anchorIndex >= 0 ? ordered.slice(0, anchorIndex + 1) : [];
+    const suffix = anchorIndex >= 0 ? ordered.slice(anchorIndex + 1) : ordered;
+    const suffixCursor = (anchorIndex >= 0 ? baseSchedule[anchorIndex]?.endAbsoluteMinutes ?? next.startTimeMinutes : next.startTimeMinutes) + remaining;
+    next.items = prefix.concat(reorderFutureAroundFixed(suffix, suffixCursor));
+    next.items.forEach((item, order) => { item.order = order; });
     next.execution = {
       ...(next.execution || {}),
       calibratedAt: new Date().toISOString(),
@@ -160,15 +202,25 @@
     return '⚑';
   }
 
-  function createPlan(sourceText, startTimeMinutes = 780, previous) {
+  function normalizePlanOrder(plan) {
+    const next = clone(plan); const ordered = (next.items || []).slice().sort((a, b) => a.order - b.order);
+    next.items = movePastFixedFirst(ordered, next.startTimeMinutes);
+    next.items.forEach((item, order) => { item.order = order; });
+    next.sourceText = exportText(next.items);
+    return next;
+  }
+
+  function createPlan(sourceText, startTimeMinutes = 780, previous, localDate = previous?.localDate || DateUtils.localDate()) {
     const parsed = parseText(sourceText); const now = new Date().toISOString();
     const existing = new Map((previous?.items || []).map(item => [`${item.title}|${item.kind}|${item.plannedDurationMinutes}|${item.fixedStartMinutes ?? ''}`, item]));
-    const items = parsed.items.map((item, order) => {
+    const parsedItems = parsed.items.map((item, order) => {
       const key = `${item.title}|${item.kind}|${item.plannedDurationMinutes}|${item.fixedStartMinutes ?? ''}`; const old = existing.get(key);
       return { ...item, id: old?.id || `tl_${Date.now().toString(36)}_${order}_${Math.random().toString(36).slice(2, 5)}`, order, note: old?.note || '', status: old?.status || 'pending', completedAt: old?.completedAt, remainingDurationMinutes: item.kind === 'buffer' ? (old?.remainingDurationMinutes ?? item.plannedDurationMinutes) : undefined };
     });
-    return { plan: { schemaVersion: 1, id: previous?.id || `plan_${Date.now().toString(36)}`, localDate: DateUtils.localDate(), startTimeMinutes, sourceText: exportText(items), items, createdAt: previous?.createdAt || now, updatedAt: now, execution: previous?.execution }, errors: parsed.errors };
+    const items = movePastFixedFirst(parsedItems, startTimeMinutes);
+    items.forEach((item, order) => { item.order = order; });
+    return { plan: { schemaVersion: 1, id: previous?.id || `plan_${Date.now().toString(36)}`, localDate, startTimeMinutes, sourceText: exportText(items), items, createdAt: previous?.createdAt || now, updatedAt: now, execution: previous?.execution }, errors: parsed.errors };
   }
 
-  return { parseLine, parseText, schedule, calibrate, formatMinutes, exportText, iconFor, createPlan, parseClock };
+  return { parseLine, parseText, schedule, calibrate, formatMinutes, exportText, iconFor, normalizePlanOrder, createPlan, parseClock };
 }));

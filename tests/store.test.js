@@ -23,3 +23,26 @@ test('时间轴按规格键名保存并保留最近五个快照', () => {
   assert.equal(JSON.parse(memory.get('daily.timelinePlanner.snapshots.v1')).length, 5);
   assert.equal(Store.getTimelinePlan('2026-07-30').updatedAt, '6');
 });
+test('时间轴可按日期保存并读取多个后续计划', () => {
+  Store.saveTimelinePlan({ schemaVersion: 1, localDate: '2099-08-01', items: [{ id: 'a' }], updatedAt: 'a' });
+  Store.saveTimelinePlan({ schemaVersion: 1, localDate: '2099-08-03', items: [{ id: 'b' }], updatedAt: 'b' });
+  assert.equal(Store.getTimelinePlan('2099-08-01').items[0].id, 'a');
+  assert.deepEqual(Store.getTimelinePlans('2099-08-01').map(plan => plan.localDate), ['2099-08-01', '2099-08-03']);
+});
+test('旧版未编辑示例计划不再作为今日任务返回', () => {
+  const today = Store.today();
+  const items = [
+    ['晚餐', 'normal', 40, undefined], ['地铁', 'normal', 30, undefined], ['缓冲', 'buffer', 10, undefined], ['会议', 'normal', 60, 900], ['日记', 'normal', 20, undefined],
+  ].map(([title, kind, plannedDurationMinutes, fixedStartMinutes], order) => ({ id: `i${order}`, order, title, kind, plannedDurationMinutes, remainingDurationMinutes: kind === 'buffer' ? plannedDurationMinutes : undefined, fixedStartMinutes, note: '', status: 'pending' }));
+  Store.saveTimelinePlan({ schemaVersion: 1, localDate: today, startTimeMinutes: 780, sourceText: '40min 晚餐\n30min 地铁\n10min ～缓冲\n@15:00 60min 会议\n20min 日记', items });
+  assert.equal(Store.getTimelinePlan(today), null);
+});
+test('Daily 导出导入包含全部日期时间轴及开始时间', () => {
+  const future = { schemaVersion: 1, localDate: '2099-08-08', startTimeMinutes: 555, sourceText: '30min 未来任务', items: [{ id: 'future', order: 0, title: '未来任务', kind: 'normal', plannedDurationMinutes: 30, note: '', status: 'pending' }] };
+  Store.saveTimelinePlan(future);
+  const exported = Store.exportAll();
+  assert.equal(exported.timelinePlans['2099-08-08'].startTimeMinutes, 555);
+  Store.clearAll();
+  assert.equal(Store.importAll(exported), true);
+  assert.equal(Store.getTimelinePlan('2099-08-08').startTimeMinutes, 555);
+});

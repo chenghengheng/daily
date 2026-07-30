@@ -7,7 +7,7 @@ const Store = {
   },
   _set(key, val) {
     try { localStorage.setItem(this._prefix + key, JSON.stringify(val)); return true; }
-    catch (_) { Toast?.show?.('保存失败：本地空间可能已满，请先导出或清理数据。'); return false; }
+    catch (_) { globalThis.Toast?.show?.('保存失败：本地空间可能已满，请先导出或清理数据。'); return false; }
   },
 
   // ---- config ----
@@ -63,22 +63,26 @@ const Store = {
   // ---- full data IO ----
   exportAll() {
     return {
-      version: 1,
+      version: 2,
       exportedAt: new Date().toISOString(),
-      config: this._get('config'),
-      wish: this._get('wish'),
-      countdown: this._get('countdown'),
-      note: this._get('note'),
-      expenses: this._get('expenses'),
+      config: this._get('config') || {},
+      wish: this.getWishItems(),
+      countdown: this.getCountdownEvents(),
+      note: this.getNoteItems(),
+      expenses: this.getExpenses(),
     };
   },
   importAll(data) {
-    if (!data || !data.version) return false;
-    if (data.config) this._set('config', data.config);
-    if (data.wish) this._set('wish', data.wish);
-    if (data.countdown) this._set('countdown', data.countdown);
-    if (data.note) this._set('note', data.note);
-    if (data.expenses) this._set('expenses', data.expenses);
+    if (!DailyDomain.validateImport(data).ok) return false;
+    const incoming = { ...data };
+    if (data.version === 1 && !Object.hasOwn(data, 'expenses')) incoming.expenses = [];
+    const fields = ['config','wish','countdown','note','expenses'];
+    const before = Object.fromEntries(fields.map(key => [key, this._get(key)]));
+    for (const key of fields) if (Object.hasOwn(incoming, key) && !this._set(key, incoming[key])) {
+      for (const restoreKey of fields) if (before[restoreKey] === null) localStorage.removeItem(this._prefix + restoreKey); else this._set(restoreKey, before[restoreKey]);
+      return false;
+    }
+    this.clearObsoleteData();
     return true;
   },
   clearAll() {
@@ -87,10 +91,10 @@ const Store = {
 
   // ---- wishlist-specific data IO ---- (用于清单页面独立导入导出)
   exportWishData() {
-    return { version: 1, exportedAt: new Date().toISOString(), wish: this._get('wish') };
+    return { version: 2, exportedAt: new Date().toISOString(), wish: this._get('wish') };
   },
   importWishData(data) {
-    if (!data || !data.wish) return false;
+    if (!DailyDomain.validateImport(data).ok || !Object.hasOwn(data, 'wish')) return false;
     this._set('wish', data.wish);
     return true;
   },

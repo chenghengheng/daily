@@ -246,3 +246,4 @@ const Countdown = {
     return d.innerHTML;
   },
 };
+if (typeof module === 'object' && module.exports) module.exports = Countdown;

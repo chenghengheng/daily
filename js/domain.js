@@ -44,5 +44,14 @@
     const categories = ['drink','snack','dining','entertainment','game_merch','other'];
     return { ...raw, id: String(raw?.id || ''), amount: Math.max(0, number(raw?.amount)), category: categories.includes(raw?.category) ? raw.category : 'other', source: raw?.source === 'wish' ? 'wish' : 'quick', occurredOn: /^\d{4}-\d{2}-\d{2}$/.test(raw?.occurredOn || '') ? raw.occurredOn : DateUtils.localDate(), createdAt: raw?.createdAt || now, updatedAt: raw?.updatedAt || now };
   }
-  return { normalizeWish, createWish, applyWishProgress, accumulatedAmount, normalizeExpense };
+  function validateImport(data) {
+    if (!data || typeof data !== 'object' || Array.isArray(data)) return { ok: false, error: '导入文件必须是对象' };
+    if (![1, 2].includes(data.version)) return { ok: false, error: '不支持的数据版本' };
+    for (const key of ['wish','countdown','note','expenses']) if (Object.hasOwn(data, key) && !Array.isArray(data[key])) return { ok: false, error: `${key} 必须是数组` };
+    if (Object.hasOwn(data, 'config') && (data.config === null || typeof data.config !== 'object' || Array.isArray(data.config))) return { ok: false, error: 'config 必须是对象' };
+    if (data.wish?.some(item => !item || typeof item !== 'object' || typeof item.name !== 'string')) return { ok: false, error: '清单数据结构无效' };
+    if (data.expenses?.some(item => !item || !Number.isFinite(Number(item.amount)) || Number(item.amount) < 0)) return { ok: false, error: '消费数据结构无效' };
+    return { ok: true };
+  }
+  return { normalizeWish, createWish, applyWishProgress, accumulatedAmount, normalizeExpense, validateImport };
 }));

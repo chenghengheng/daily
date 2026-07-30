@@ -51,8 +51,6 @@
     rgba(0,0,0,0.04) 4px
   );
 }
-body.has-bg #scanlines { opacity: .4; }
-
 /* ===== BASE ===== */
 html, body { height: 100%; overflow: hidden; }
 body {
@@ -69,10 +67,6 @@ body {
   background-repeat: no-repeat;
   background-attachment: fixed;
 }
-body.has-bg {
-  background-color: #4a4840;
-}
-
 /* Ambient element (unused in Zelda theme, kept for JS compat) */
 #ambient { display: none; }
 
@@ -616,31 +610,6 @@ textarea { resize: vertical; min-height: 60px; }
   color: var(--text2);
 }
 #note-done-details summary:focus { outline: 2px solid var(--sheikah); outline-offset: 2px; }
-
-/* ===== HAS-BG OVERRIDES ===== */
-body.has-bg #header,
-body.has-bg #nav {
-  background: rgba(0,0,0,0.75);
-}
-body.has-bg .card,
-body.has-bg .modal,
-body.has-bg .stat-card {
-  background: rgba(0,0,0,0.72);
-}
-body.has-bg .btn-outline { background: rgba(0,0,0,0.6); }
-body.has-bg .toast { background: rgba(0,0,0,0.72); }
-
-body.has-bg.bg-light #header,
-body.has-bg.bg-light #nav {
-  background: rgba(0,0,0,0.85);
-}
-body.has-bg.bg-light .card,
-body.has-bg.bg-light .modal,
-body.has-bg.bg-light .stat-card {
-  background: rgba(0,0,0,0.82);
-}
-body.has-bg.bg-light .btn-outline { background: rgba(0,0,0,0.7); }
-body.has-bg.bg-light .toast { background: rgba(0,0,0,0.82); }
 
 /* ===== ANIMATIONS ===== */
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }

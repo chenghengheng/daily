@@ -138,7 +138,7 @@ const Wish = {
           </div>
         ` : item.status === 'active' ? `
           <div style="display:flex;gap:6px;margin-top:8px;justify-content:flex-end;flex-wrap:wrap;">
-            <button class="btn btn-sm btn-primary wish-confirm-btn">标记已购买</button>
+            <button class="btn btn-sm btn-primary wish-confirm-btn">提前购买</button>
             <button class="btn btn-sm btn-outline wish-seal-btn" style="color:var(--text3);font-size:11px;">${item.sealed !== false ? '解除封印' : '封印'}</button>
             <button class="btn btn-sm btn-outline wish-delete-btn" style="color:var(--text3);font-size:11px;">删除</button>
           </div>
@@ -147,7 +147,7 @@ const Wish = {
             <span style="font-size:11px;color:var(--text2);margin-right:auto;">
               ${item.status === 'purchased' ? `实际 ¥${Number(item.actualPrice ?? item.price).toFixed(2)} · ${item.purchaseTiming === 'early' ? `等待 ${Math.max(0, DateUtils.daysBetween(Store.today(new Date(item.createdAt)), Store.today(new Date(item.purchasedAt))))} 天后购买` : '达到等待进度后购买'}<br>` : ''}
               ${item.purchaseReason ? `购买备注：${this._esc(item.purchaseReason)}<br>` : ''}
-              最终等待进度：${item.currentProgress.toFixed(1)} / ${item.price} · ${(item.progressLog || item.clickLog || []).length} 天
+              最终等待进度：${Number(item.progressAtDecision ?? item.currentProgress).toFixed(1)} / ${item.price} · ${(item.progressLog || item.clickLog || []).length} 天
             </span>
             <button class="btn btn-sm btn-outline wish-delete-btn" style="color:var(--text3);font-size:11px;">删除</button>
           </div>

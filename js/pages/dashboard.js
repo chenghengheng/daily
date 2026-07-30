@@ -5,9 +5,7 @@ const Dashboard = {
     const events = Store.getCountdownEvents();
     const active = wishes.filter(item => item.status === 'active');
     const ready = active.filter(item => Number(item.currentProgress) >= Number(item.price));
-    const activeProgress = active.reduce((sum, item) => sum + Number(item.currentProgress || 0), 0);
-    const purchased = wishes.filter(item => item.status === 'purchased').reduce((sum, item) => sum + Number(item.actualPrice ?? item.price ?? 0), 0);
-    const quick = expenses.filter(item => item.source !== 'wish' && !item.deletedAt).reduce((sum, item) => sum + Number(item.amount || 0), 0);
+    const totalAccumulated = DailyDomain.accumulatedAmount(wishes, expenses);
     const today = Store.today();
     const upcoming = events.map(event => ({ ...event, diff: Math.round((new Date(`${event.date}T00:00:00`) - new Date(`${today}T00:00:00`)) / 86400000) })).filter(event => event.diff >= 0).sort((a, b) => a.diff - b.diff).slice(0, 3);
 
@@ -15,7 +13,7 @@ const Dashboard = {
       <div style="display:flex;justify-content:flex-end;margin-bottom:10px;"><button class="btn btn-sm btn-outline" id="dashboard-settings-btn">设置</button></div>
       <div class="stat-grid stat-enter" style="grid-template-columns:1fr 1fr;margin-bottom:16px;">
         <div class="stat-card"><div class="stat-number">${active.length}</div><div class="stat-label">进行中 · 清单</div></div>
-        <div class="stat-card"><div class="stat-number" style="color:var(--sheikah);">¥${(activeProgress + purchased + quick).toFixed(1)}</div><div class="stat-label">已累积</div></div>
+        <div class="stat-card"><div class="stat-number" style="color:var(--sheikah);">¥${totalAccumulated.toFixed(1)}</div><div class="stat-label">已累积</div></div>
       </div>
       ${ready.length ? `<div class="card" style="border-color:var(--gold);"><div style="display:flex;justify-content:space-between;align-items:center;"><span style="font-size:14px;font-weight:600;">🎯 ${ready.length} 个物品已达目标</span><a href="#/wish" style="color:var(--sheikah);font-size:13px;text-decoration:none;">去看看 →</a></div></div>` : ''}
       ${upcoming.length ? `<div class="card"><div class="card-title">⏰ 即将到来</div>${upcoming.map(event => `<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:14px;border-bottom:1px solid var(--border);"><span>${event.type === 'reminder' ? '⚠ ' : '★ '}${this._esc(event.title)}</span><span style="color:${event.diff <= 7 ? 'var(--gold)' : 'var(--sheikah)'};font-weight:600;">${event.diff} 天</span></div>`).join('')}</div>` : ''}`;

@@ -39,5 +39,10 @@
     const quick = expenses.filter(item => item.source !== 'wish' && !item.deletedAt).reduce((sum, item) => sum + Math.max(0, number(item.amount)), 0);
     return active + purchased + quick;
   }
-  return { normalizeWish, createWish, applyWishProgress, accumulatedAmount };
+  function normalizeExpense(raw) {
+    const now = new Date().toISOString();
+    const categories = ['drink','snack','dining','entertainment','game_merch','other'];
+    return { ...raw, id: String(raw?.id || ''), amount: Math.max(0, number(raw?.amount)), category: categories.includes(raw?.category) ? raw.category : 'other', source: raw?.source === 'wish' ? 'wish' : 'quick', occurredOn: /^\d{4}-\d{2}-\d{2}$/.test(raw?.occurredOn || '') ? raw.occurredOn : DateUtils.localDate(), createdAt: raw?.createdAt || now, updatedAt: raw?.updatedAt || now };
+  }
+  return { normalizeWish, createWish, applyWishProgress, accumulatedAmount, normalizeExpense };
 }));

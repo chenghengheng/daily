@@ -142,6 +142,11 @@ body::after {
   transition: color var(--duration) var(--easing);
   position: relative;
 }
+#nav [data-page="dashboard"] { order: 1; }
+#nav [data-page="wish"] { order: 2; }
+#nav [data-page="expense"] { order: 3; }
+#nav [data-page="note"] { order: 4; }
+#nav [data-page="countdown"] { order: 5; }
 .nav-item::before {
   content: ''; position: absolute; top: 0; left: 50%; transform: translateX(-50%);
   width: 24px; height: 2px; border-radius: 0;
@@ -251,6 +256,10 @@ input, textarea, select {
   color: var(--text); font-size: 15px; outline: none;
   font-family: inherit; transition: border-color var(--duration) var(--easing), box-shadow var(--duration) var(--easing);
   -webkit-appearance: none; appearance: none;
+}
+input[type="checkbox"] {
+  width: 18px; height: 18px; padding: 0; flex-shrink: 0;
+  -webkit-appearance: checkbox; appearance: auto; accent-color: var(--sheikah);
 }
 input:focus, textarea:focus, select:focus {
   border-color: var(--sheikah);

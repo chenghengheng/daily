@@ -4,7 +4,8 @@
   "description": "",
   "main": "sw.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node --test tests/*.test.js",
+    "check": "npm test && node --check js/app.js && node --check js/store.js && node --check js/pages/dashboard.js && node --check js/pages/wish.js && node --check js/pages/expense.js && node --check js/pages/note.js && node --check js/pages/countdown.js && node --check sw.js"
   },
   "repository": {
     "type": "git",

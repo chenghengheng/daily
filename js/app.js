@@ -90,44 +90,17 @@ const App = {
   currentPage: '',
 
   init() {
-    this._applyBgImage();
+    Store.clearObsoleteData?.();
     Countdown.cleanupExpiredAuto();  // remove expired imported countdown events
     window.addEventListener('hashchange', () => this.route());
     this.route();
-  },
-
-  _applyBgImage() {
-    const bg = Store.getBgImage();
-    if (bg) {
-      document.body.classList.add('has-bg');
-      document.body.style.backgroundImage = `url(${bg})`;
-      this._detectBgLightness(bg);
-    }
-  },
-
-  _detectBgLightness(dataUrl) {
-    const img = new Image();
-    img.onload = () => {
-      const c = document.createElement('canvas');
-      c.width = 50; c.height = 50;
-      const ctx = c.getContext('2d');
-      ctx.drawImage(img, 0, 0, 50, 50);
-      const d = ctx.getImageData(0, 0, 50, 50).data;
-      let sum = 0;
-      for (let i = 0; i < d.length; i += 4) {
-        sum += 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
-      }
-      const avg = sum / (d.length / 4);
-      document.body.classList.toggle('bg-light', avg > 180);
-    };
-    img.src = dataUrl;
   },
 
   route() {
     const hash = location.hash.slice(1) || '/';
     let page = 'dashboard';
     if (hash.startsWith('/wish')) page = 'wish';
-    else if (hash.startsWith('/study')) page = 'study';
+    else if (hash.startsWith('/expense')) page = 'expense';
     else if (hash.startsWith('/countdown')) page = 'countdown';
     else if (hash.startsWith('/note')) page = 'note';
 
@@ -136,7 +109,7 @@ const App = {
       el.classList.toggle('active', el.dataset.page === page);
     });
 
-    const titles = { dashboard: '仪表盘', wish: '清单', study: '学习', countdown: '倒计时', note: '随手记' };
+    const titles = { dashboard: '仪表盘', wish: '清单', expense: '随手花', countdown: '倒计时', note: '随手记' };
     document.getElementById('page-title').textContent = titles[page] || 'Daily';
 
     const container = document.getElementById('content');
@@ -145,7 +118,7 @@ const App = {
     switch (page) {
       case 'dashboard': Dashboard.render(container); break;
       case 'wish': Wish.render(container); break;
-      case 'study': Study.render(container); break;
+      case 'expense': Expense.render(container); break;
       case 'countdown': Countdown.render(container); break;
       case 'note': Note.render(container); break;
     }

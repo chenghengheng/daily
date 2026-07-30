@@ -21,13 +21,16 @@ const Store = {
   getWishItems() { return this._get('wish') || []; },
   saveWishItems(items) { this._set('wish', items); },
 
-  // ---- study plans ----
-  getStudyPlans() { return this._get('study') || []; },
-  saveStudyPlans(plans) { this._set('study', plans); },
-
   // ---- countdown events ----
   getCountdownEvents() { return this._get('countdown') || []; },
   saveCountdownEvents(events) { this._set('countdown', events); },
+
+  getExpenses() { return this._get('expenses') || []; },
+  saveExpenses(items) { this._set('expenses', items); },
+  clearObsoleteData() {
+    localStorage.removeItem(this._prefix + 'study');
+    localStorage.removeItem(this._prefix + 'bgImage');
+  },
 
   // ---- note items ----
   getNoteItems() { return this._get('note') || []; },
@@ -40,30 +43,23 @@ const Store = {
       exportedAt: new Date().toISOString(),
       config: this._get('config'),
       wish: this._get('wish'),
-      study: this._get('study'),
       countdown: this._get('countdown'),
       note: this._get('note'),
-      bgImage: this._get('bgImage'),
+      expenses: this._get('expenses'),
     };
   },
   importAll(data) {
     if (!data || !data.version) return false;
     if (data.config) this._set('config', data.config);
     if (data.wish) this._set('wish', data.wish);
-    if (data.study) this._set('study', data.study);
     if (data.countdown) this._set('countdown', data.countdown);
     if (data.note) this._set('note', data.note);
-    if (data.bgImage) this._set('bgImage', data.bgImage);
+    if (data.expenses) this._set('expenses', data.expenses);
     return true;
   },
   clearAll() {
-    ['config','wish','study','countdown','note'].forEach(k => localStorage.removeItem(this._prefix + k));
+    ['config','wish','study','countdown','note','expenses','bgImage'].forEach(k => localStorage.removeItem(this._prefix + k));
   },
-
-  // ---- background image ----
-  getBgImage() { return this._get('bgImage') || null; },
-  saveBgImage(dataUrl) { this._set('bgImage', dataUrl); },
-  clearBgImage() { localStorage.removeItem(this._prefix + 'bgImage'); },
 
   // ---- wishlist-specific data IO ---- (用于清单页面独立导入导出)
   exportWishData() {

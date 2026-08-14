@@ -222,6 +222,29 @@
     return rule ? rule.icon : '⚑';
   }
 
+  function carryOver(plan, previousPlan, fromDate) {
+    if (!previousPlan || !Array.isArray(previousPlan.items)) return null;
+    const next = clone(plan);
+    if (next.carriedFromDate === fromDate) return null;
+    const leftovers = previousPlan.items.filter(item => item.status !== 'completed');
+    if (leftovers.length) {
+      const carried = leftovers.map(item => {
+        const copy = clone(item);
+        delete copy.fixedStartMinutes;
+        copy.carriedFrom = fromDate;
+        copy.status = 'pending';
+        copy.completedAt = undefined;
+        return copy;
+      });
+      next.items = (next.items || []).concat(carried);
+    }
+    next.items.forEach((item, order) => { item.order = order; });
+    next.carriedFromDate = fromDate;
+    next.updatedAt = new Date().toISOString();
+    next.sourceText = exportText(next.items);
+    return next;
+  }
+
   function normalizePlanOrder(plan) {
     const next = clone(plan); const ordered = (next.items || []).slice().sort((a, b) => a.order - b.order);
     next.items = movePastFixedFirst(ordered, next.startTimeMinutes);
@@ -242,5 +265,5 @@
     return { plan: { schemaVersion: 1, id: previous?.id || `plan_${Date.now().toString(36)}`, localDate, startTimeMinutes, sourceText: exportText(items), items, createdAt: previous?.createdAt || now, updatedAt: now, execution: previous?.execution }, errors: parsed.errors };
   }
 
-  return { parseLine, parseText, schedule, calibrate, formatMinutes, exportText, iconFor, iconCategoryFor, normalizePlanOrder, createPlan, parseClock };
+  return { parseLine, parseText, schedule, calibrate, formatMinutes, exportText, iconFor, iconCategoryFor, normalizePlanOrder, carryOver, createPlan, parseClock };
 }));

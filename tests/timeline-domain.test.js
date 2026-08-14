@@ -128,3 +128,46 @@ test('图标分类可供 UI 复用且大小写不敏感', () => {
   assert.equal(Timeline.iconCategoryFor('缓冲'), 'buffer');
   assert.equal(Timeline.iconCategoryFor('X'), 'default');
 });
+
+test('结转昨日未完成任务到今日计划之后', () => {
+  const today = Timeline.createPlan('30min 今日任务', 540, null, '2026-08-14').plan;
+  const yesterday = Timeline.createPlan('40min 未完成\n@10:00 30min 已完\n10min ～缓冲', 480, null, '2026-08-13').plan;
+  yesterday.items[1].status = 'completed';
+  const merged = Timeline.carryOver(today, yesterday, '2026-08-13');
+  assert.ok(merged);
+  assert.deepEqual(merged.items.map(item => item.title), ['今日任务', '未完成', '缓冲']);
+  assert.equal(merged.items[1].fixedStartMinutes, undefined);
+  assert.equal(merged.items[1].carriedFrom, '2026-08-13');
+  assert.deepEqual(merged.items.map(item => item.order), [0, 1, 2]);
+  assert.equal(merged.carriedFromDate, '2026-08-13');
+});
+
+test('结转幂等：同日重复调用返回 null', () => {
+  const today = Timeline.createPlan('30min 任务', 540, null, '2026-08-14').plan;
+  const yesterday = Timeline.createPlan('40min 遗留', 480, null, '2026-08-13').plan;
+  const first = Timeline.carryOver(today, yesterday, '2026-08-13');
+  assert.ok(first);
+  assert.equal(Timeline.carryOver(first, yesterday, '2026-08-13'), null);
+});
+
+test('昨日无未完成任务时仅打标记', () => {
+  const today = Timeline.createPlan('30min 任务', 540, null, '2026-08-14').plan;
+  const yesterday = Timeline.createPlan('40min 已完成', 480, null, '2026-08-13').plan;
+  yesterday.items[0].status = 'completed';
+  const merged = Timeline.carryOver(today, yesterday, '2026-08-13');
+  assert.equal(merged.items.length, 1);
+  assert.equal(merged.carriedFromDate, '2026-08-13');
+});
+
+test('结转保留缓冲剩余时长', () => {
+  const today = Timeline.createPlan('30min 任务', 540, null, '2026-08-14').plan;
+  const yesterday = Timeline.createPlan('10min ～缓冲', 480, null, '2026-08-13').plan;
+  yesterday.items[0].remainingDurationMinutes = 4;
+  const merged = Timeline.carryOver(today, yesterday, '2026-08-13');
+  assert.equal(merged.items[1].remainingDurationMinutes, 4);
+});
+
+test('无昨日计划时不结转', () => {
+  const today = Timeline.createPlan('30min 任务', 540, null, '2026-08-14').plan;
+  assert.equal(Timeline.carryOver(today, null, '2026-08-13'), null);
+});

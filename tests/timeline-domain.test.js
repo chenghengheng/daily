@@ -104,3 +104,27 @@ test('负向校准提前当前事项之后的灵活排期但不移动固定锚�
   assert.equal(result.schedule[1].startAbsoluteMinutes, 795);
   assert.equal(result.schedule[2].startAbsoluteMinutes, 900);
 });
+
+test('图标识别覆盖更多生活场景', () => {
+  const samples = [
+    ['早餐', '🍴'], ['咖啡', '🍴'], ['夜宵', '🍴'],
+    ['高铁通勤', '🚇'], ['打车', '🚇'],
+    ['跑步', '🏃'], ['健身', '🏃'], ['瑜伽', '🏃'],
+    ['学习英语', '📚'], ['复习', '📚'], ['背单词', '📚'],
+    ['写代码', '💼'], ['加班', '💼'],
+    ['打扫卫生', '🧹'], ['洗碗', '🧹'],
+    ['打电话', '☎'],
+    ['追剧', '🎮'], ['看电影', '🎮'],
+    ['睡觉', '🛌'], ['冥想', '🛌'],
+    ['超市采购', '🛒'], ['买菜', '🛒'],
+    ['随便什么', '⚑'],
+  ];
+  samples.forEach(([title, icon]) => assert.equal(Timeline.iconFor({ title, kind: 'normal' }), icon));
+});
+
+test('图标分类可供 UI 复用且大小写不敏感', () => {
+  assert.equal(Timeline.iconCategoryFor('写BUG'), 'work');
+  assert.equal(Timeline.iconCategoryFor('读书'), 'journal');
+  assert.equal(Timeline.iconCategoryFor('缓冲'), 'buffer');
+  assert.equal(Timeline.iconCategoryFor('X'), 'default');
+});

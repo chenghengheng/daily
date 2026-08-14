@@ -90,7 +90,7 @@ const TimelinePage = {
   timelineHtml() {
     if (!this.plan.items.length) return '<p class="empty-timeline">还没有计划。点右上角“编辑”开始安排今天。</p>';
     return this.plan.items.map((item, index) => {
-      const slot = this.schedule[index]; const classes = ['entry', item.kind === 'buffer' ? 'buffer' : '', Number.isFinite(item.fixedStartMinutes) ? 'fixed' : '', /日记|记录|写作|阅读/.test(item.title) ? 'journal' : '', item.status === 'completed' ? 'is-complete' : '', slot.conflict ? 'conflict' : ''].filter(Boolean).join(' ');
+      const slot = this.schedule[index]; const classes = ['entry', item.kind === 'buffer' ? 'buffer' : '', Number.isFinite(item.fixedStartMinutes) ? 'fixed' : '', TimelineDomain.iconCategoryFor(item.title) === 'journal' ? 'journal' : '', item.status === 'completed' ? 'is-complete' : '', slot.conflict ? 'conflict' : ''].filter(Boolean).join(' ');
       const type = Number.isFinite(item.fixedStartMinutes) ? '固定时间' : item.kind === 'buffer' ? '可消耗缓冲' : '普通时间块';
       return `<section class="${classes}" data-id="${this.escape(item.id)}"><span class="time small">${Number.isFinite(item.fixedStartMinutes) ? `<strong>${this.formatTime(slot.startAbsoluteMinutes)}</strong>` : this.formatTime(slot.startAbsoluteMinutes)}</span><span class="tick" aria-hidden="true"></span><div class="ticket">
         <button class="stub left-stub" type="button" aria-label="向右拖动删除${this.escape(item.title)}"><span class="stub-normal"><span aria-hidden="true">${TimelineDomain.iconFor(item)}</span></span><span class="tear-action"><span>⌫</span><span class="small">删除</span></span></button>

@@ -192,14 +192,34 @@
     return (items || []).slice().sort((a, b) => a.order - b.order).map(item => `${Number.isFinite(item.fixedStartMinutes) ? `@${formatMinutes(item.fixedStartMinutes)} ` : ''}${item.plannedDurationMinutes}min ${item.kind === 'buffer' ? '～' : ''}${item.kind === 'buffer' && !item.title ? '缓冲' : item.title}`).join('\n');
   }
 
+  const ICON_RULES = [
+    { category: 'meal', icon: '🍴', patterns: ['早餐','午餐','晚餐','早饭','午饭','晚饭','吃饭','咖啡','夜宵','加餐'] },
+    { category: 'commute', icon: '🚇', patterns: ['地铁','公交','通勤','打车','步行','骑车','骑行','开车','高铁','火车','飞机'] },
+    { category: 'buffer', icon: '〰', patterns: ['缓冲','休息','等待','小憩','午休'] },
+    { category: 'meeting', icon: '⌖', patterns: ['会议','讨论','同步','复盘','开会','洽谈','面试'] },
+    { category: 'journal', icon: '▤', patterns: ['日记','记录','写作','阅读','读书','看书'] },
+    { category: 'study', icon: '📚', patterns: ['学习','复习','备考','上课','背单词','听写'] },
+    { category: 'sport', icon: '🏃', patterns: ['运动','健身','跑步','锻炼','瑜伽','游泳','散步'] },
+    { category: 'work', icon: '💼', patterns: ['工作','上班','加班','写代码','编程','开发','改bug','bug'] },
+    { category: 'housework', icon: '🧹', patterns: ['家务','打扫','整理','洗衣','洗碗','拖地'] },
+    { category: 'phone', icon: '☎', patterns: ['电话','通话','打电话','语音'] },
+    { category: 'fun', icon: '🎮', patterns: ['娱乐','游戏','电影','追剧','动漫','刷手机'] },
+    { category: 'sleep', icon: '🛌', patterns: ['睡觉','起床','洗漱','洗澡','冥想'] },
+    { category: 'shop', icon: '🛒', patterns: ['购物','超市','买菜','逛街'] },
+  ];
+
+  function iconCategoryFor(title) {
+    const text = String(title || '').toLowerCase();
+    for (const rule of ICON_RULES) {
+      if (rule.patterns.some(pattern => text.includes(pattern.toLowerCase()))) return rule.category;
+    }
+    return 'default';
+  }
+
   function iconFor(item) {
     const title = item.kind === 'buffer' ? '缓冲' : item.title;
-    if (/早餐|午餐|晚餐|吃饭|咖啡/.test(title)) return '🍴';
-    if (/地铁|公交|通勤|打车|步行/.test(title)) return '🚇';
-    if (/缓冲|休息|等待/.test(title)) return '〰';
-    if (/会议|讨论|同步|复盘/.test(title)) return '⌖';
-    if (/日记|记录|写作|阅读/.test(title)) return '▤';
-    return '⚑';
+    const rule = ICON_RULES.find(entry => entry.category === iconCategoryFor(title));
+    return rule ? rule.icon : '⚑';
   }
 
   function normalizePlanOrder(plan) {
@@ -222,5 +242,5 @@
     return { plan: { schemaVersion: 1, id: previous?.id || `plan_${Date.now().toString(36)}`, localDate, startTimeMinutes, sourceText: exportText(items), items, createdAt: previous?.createdAt || now, updatedAt: now, execution: previous?.execution }, errors: parsed.errors };
   }
 
-  return { parseLine, parseText, schedule, calibrate, formatMinutes, exportText, iconFor, normalizePlanOrder, createPlan, parseClock };
+  return { parseLine, parseText, schedule, calibrate, formatMinutes, exportText, iconFor, iconCategoryFor, normalizePlanOrder, createPlan, parseClock };
 }));

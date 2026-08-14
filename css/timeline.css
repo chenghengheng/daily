@@ -45,3 +45,5 @@
 #timeline-planner .conflict .ticket{outline:2px solid var(--clay)}#timeline-planner .conflict-note{display:block;margin-top:4px;color:#7e3027;font-size:11px}
 @media(max-width:420px){#timeline-planner .phone{padding-left:15px;padding-right:15px}.intro h2{font-size:26px!important}#timeline-planner .timeline{padding-left:88px}#timeline-planner .timeline:before{left:66px}#timeline-planner .tick{left:-30px}#timeline-planner .time{right:calc(100% + 29px)}#timeline-planner .ticket{grid-template-columns:52px minmax(0,1fr) 58px}}
 @media(prefers-reduced-motion:reduce){#timeline-planner *,#timeline-planner *:before,#timeline-planner *:after{scroll-behavior:auto!important;transition-duration:.01ms!important;animation-duration:.01ms!important}}
+
+#timeline-planner .carried-tag{display:inline-block;margin:0 0 4px 6px;padding:2px 6px;border:1px solid var(--olive);color:var(--olive);background:var(--paper);vertical-align:middle}

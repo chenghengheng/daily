@@ -15,7 +15,19 @@ const TimelinePage = {
       this.plan = TimelineDomain.normalizePlanOrder(this.plan);
       if (this.plan.items.map(item => item.id).join('|') !== beforeOrder) Store.saveTimelinePlan(this.plan);
     }
+    this.applyCarryover();
     this.schedule = TimelineDomain.schedule(this.plan);
+  },
+  applyCarryover() {
+    const today = this.plan.localDate || Store.today();
+    const yesterdayDate = DateUtils.addDays(today, -1);
+    if (this.plan.carriedFromDate === yesterdayDate) return;
+    const merged = TimelineDomain.carryOver(this.plan, Store.getTimelinePlan(yesterdayDate), yesterdayDate);
+    if (!merged) return;
+    const count = merged.items.filter(item => item.carriedFrom === yesterdayDate).length;
+    this.plan = merged;
+    this.save();
+    if (count) Toast.show(`已将昨日 ${count} 项未完成任务结转`);
   },
   save() { if (!Store.saveTimelinePlan(this.plan)) return false; this.schedule = TimelineDomain.schedule(this.plan); return true; },
 
@@ -94,7 +106,7 @@ const TimelinePage = {
       const type = Number.isFinite(item.fixedStartMinutes) ? '固定时间' : item.kind === 'buffer' ? '可消耗缓冲' : '普通时间块';
       return `<section class="${classes}" data-id="${this.escape(item.id)}"><span class="time small">${Number.isFinite(item.fixedStartMinutes) ? `<strong>${this.formatTime(slot.startAbsoluteMinutes)}</strong>` : this.formatTime(slot.startAbsoluteMinutes)}</span><span class="tick" aria-hidden="true"></span><div class="ticket">
         <button class="stub left-stub" type="button" aria-label="向右拖动删除${this.escape(item.title)}"><span class="stub-normal"><span aria-hidden="true">${TimelineDomain.iconFor(item)}</span></span><span class="tear-action"><span>⌫</span><span class="small">删除</span></span></button>
-        <button class="ticket-main" type="button" aria-expanded="false"><span class="ticket-title">${this.escape(item.kind === 'buffer' ? '缓冲' : item.title)}</span><span class="tap-hint small">点击查看备注</span>${slot.conflict ? `<span class="conflict-note">⚠ 冲突 ${slot.overlapMinutes} 分钟</span>` : ''}</button>
+        <button class="ticket-main" type="button" aria-expanded="false"><span class="ticket-title">${this.escape(item.kind === 'buffer' ? '缓冲' : item.title)}</span>${item.carriedFrom ? '<span class="carried-tag small">昨日结转</span>' : ''}<span class="tap-hint small">点击查看备注</span>${slot.conflict ? `<span class="conflict-note">⚠ 冲突 ${slot.overlapMinutes} 分钟</span>` : ''}</button>
         <button class="stub right-stub" type="button" aria-label="向左拖动完成${this.escape(item.title)}"><span class="stub-normal"><span>${item.kind === 'buffer' ? (item.remainingDurationMinutes ?? item.plannedDurationMinutes) : item.plannedDurationMinutes}</span><span class="stub-hint small">MIN</span></span><span class="tear-action"><span>✓</span><span class="small">完成</span></span></button><span class="done-stamp small">DONE</span></div>
         <div class="detail"><div class="detail-meta small"><span>${this.formatTime(slot.startAbsoluteMinutes)}—${this.formatTime(slot.endAbsoluteMinutes)}</span><span>${type}</span></div>${slot.idleBeforeMinutes ? `<p class="small">此前空档 ${slot.idleBeforeMinutes} 分钟</p>` : ''}<label class="note-label small">备注</label><textarea class="note" aria-label="${this.escape(item.title)}备注">${this.escape(item.note)}</textarea><div class="detail-actions"><button class="alt-complete" type="button">完成</button><button class="alt-delete" type="button">删除</button><button class="save-note" type="button">保存备注</button></div></div>
       </section>`;

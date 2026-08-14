@@ -36,3 +36,5 @@ test('当前事项区分下一项、逾期和全部完成', () => { assert.match
 test('当前任务与时间轴位于同一滚动段落', () => { assert.match(timeline, /class="day-scroll"[\s\S]*\$\{currentHtml\}[\s\S]*timeline-head[\s\S]*timeline/); });
 test('票据不显示方向箭头', () => { assert.doesNotMatch(timeline, /stub-hint small">[←→]/); });
 test('校准使用页面内确认层而不是原生 confirm', () => { assert.match(timeline, /calibration-sheet/); assert.match(timeline, /确认校准/); assert.doesNotMatch(timeline, /if \(!confirm\(`从现在继续/); });
+test('结转任务显示昨日结转标签', () => { assert.match(timeline, /昨日结转/); assert.match(timeline, /item\.carriedFrom/); });
+test('载入时自动结转昨日未完成任务', () => { assert.match(timeline, /applyCarryover\(\)/); assert.match(timeline, /carriedFromDate === yesterdayDate/); assert.match(timeline, /已将昨日/); });

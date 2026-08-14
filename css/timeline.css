@@ -47,3 +47,7 @@
 @media(prefers-reduced-motion:reduce){#timeline-planner *,#timeline-planner *:before,#timeline-planner *:after{scroll-behavior:auto!important;transition-duration:.01ms!important;animation-duration:.01ms!important}}
 
 #timeline-planner .carried-tag{display:inline-block;margin:0 0 4px 6px;padding:2px 6px;border:1px solid var(--olive);color:var(--olive);background:var(--paper);vertical-align:middle}
+
+#timeline-planner .history-plans{margin-bottom:22px}
+#timeline-planner .history-plans .kicker{margin-bottom:8px}
+#timeline-planner .history-card{box-shadow:4px 4px 0 var(--olive)}

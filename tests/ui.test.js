@@ -38,3 +38,4 @@ test('票据不显示方向箭头', () => { assert.doesNotMatch(timeline, /stub-
 test('校准使用页面内确认层而不是原生 confirm', () => { assert.match(timeline, /calibration-sheet/); assert.match(timeline, /确认校准/); assert.doesNotMatch(timeline, /if \(!confirm\(`从现在继续/); });
 test('结转任务显示昨日结转标签', () => { assert.match(timeline, /昨日结转/); assert.match(timeline, /item\.carriedFrom/); });
 test('载入时自动结转昨日未完成任务', () => { assert.match(timeline, /applyCarryover\(\)/); assert.match(timeline, /carriedFromDate === yesterdayDate/); assert.match(timeline, /已将昨日/); });
+test('计划页可回看历史计划', () => { assert.match(timeline, /historyPlansHtml/); assert.match(timeline, /history-plans/); assert.match(timeline, /PAST PLANS/); assert.match(timeline, /getTimelinePlans\('0001-01-01'\)/); });

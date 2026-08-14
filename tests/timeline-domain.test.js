@@ -69,7 +69,7 @@ test('校准导致后续普通事项撞上固定事项时优先固定锚点', ()
   const plan = Timeline.createPlan('20min 当前\n20min 后续\n@15:00 60min 固定', 840).plan;
   const result = Timeline.calibrate(plan, 30, plan.items[0].id);
   assert.deepEqual(result.plan.items.map(item => item.title), ['当前', '固定', '后续']);
-  assert.deepEqual(result.schedule.map(slot => [slot.startAbsoluteMinutes, slot.endAbsoluteMinutes]), [[840, 860], [900, 960], [960, 980]]);
+  assert.deepEqual(result.schedule.map(slot => [slot.startAbsoluteMinutes, slot.endAbsoluteMinutes]), [[870, 890], [900, 960], [960, 980]]);
 });
 
 test('晚间计划里的凌晨固定事项落到次日', () => {
@@ -170,4 +170,37 @@ test('结转保留缓冲剩余时长', () => {
 test('无昨日计划时不结转', () => {
   const today = Timeline.createPlan('30min 任务', 540, null, '2026-08-14').plan;
   assert.equal(Timeline.carryOver(today, null, '2026-08-13'), null);
+});
+
+test('校准后灵活锚点从现在开始并优先消耗缓冲', () => {
+  const plan = Timeline.createPlan('40min 晚餐\n10min ～缓冲\n30min 后续', 780).plan;
+  const result = Timeline.calibrate(plan, 8, plan.items[0].id);
+  assert.deepEqual(result.schedule.map(slot => slot.startAbsoluteMinutes), [788, 828, 830]);
+  assert.equal(result.plan.items[1].remainingDurationMinutes, 2);
+});
+
+test('校准偏移超出缓冲后顺延后续事项', () => {
+  const plan = Timeline.createPlan('20min 当前\n10min ～缓冲\n20min 后续', 780).plan;
+  const result = Timeline.calibrate(plan, 25, plan.items[0].id);
+  assert.equal(result.plan.items[1].remainingDurationMinutes, 0);
+  assert.equal(result.remainingOffsetMinutes, 15);
+  assert.deepEqual(result.schedule.map(slot => [slot.startAbsoluteMinutes, slot.endAbsoluteMinutes]), [[805, 825], [825, 825], [825, 845]]);
+});
+
+test('固定锚点校准时保持不动仅顺延后续', () => {
+  const plan = Timeline.createPlan('@15:00 60min 会议\n20min 后续', 780).plan;
+  const result = Timeline.calibrate(plan, 30, plan.items[0].id);
+  assert.equal(result.schedule[0].startAbsoluteMinutes, 900);
+  assert.equal(result.schedule[1].startAbsoluteMinutes, 990);
+});
+
+test('校准偏移写入执行态且旧格式仍可渲染', () => {
+  const plan = Timeline.createPlan('20min 当前\n20min 后续', 780).plan;
+  const result = Timeline.calibrate(plan, 5, plan.items[0].id);
+  assert.equal(result.plan.execution.anchorStartAbsoluteMinutes, 785);
+  assert.equal(result.schedule[0].startAbsoluteMinutes, 785);
+  const legacy = Timeline.createPlan('20min 当前\n20min 后续', 780).plan;
+  legacy.execution = { calibrationOffsetMinutes: 5, calibrationAfterItemId: legacy.items[0].id, remainingOffsetMinutes: 5 };
+  assert.equal(Timeline.schedule(legacy)[0].startAbsoluteMinutes, 780);
+  assert.equal(Timeline.schedule(legacy)[1].startAbsoluteMinutes, 805);
 });

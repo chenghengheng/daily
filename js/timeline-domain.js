@@ -119,16 +119,18 @@
   function schedule(plan) {
     let cursor = Number(plan?.startTimeMinutes) || 0;
     const items = (plan?.items || []).slice().sort((a, b) => a.order - b.order);
-    const calibrationOffset = Number(plan?.execution?.remainingOffsetMinutes) || 0;
-    const calibrationAfter = plan?.execution?.calibrationAfterItemId;
+    const execution = plan?.execution || {};
+    const anchorStart = Number(execution.anchorStartAbsoluteMinutes);
+    const hasAnchorStart = Number.isFinite(anchorStart);
+    const legacyOffset = Number(execution.remainingOffsetMinutes) || 0;
+    const calibrationAfter = execution.calibrationAfterItemId;
     let calibrationApplied = false; let leadingPastFixed = true;
     return items.map((item, index) => {
-      const shouldApplyCalibration = !calibrationApplied && calibrationOffset && (
-        calibrationAfter ? items[index - 1]?.id === calibrationAfter : index === 0
-      );
-      if (shouldApplyCalibration) {
-        cursor = Math.max(0, cursor + calibrationOffset);
-        calibrationApplied = true;
+      const isAnchor = calibrationAfter ? items[index]?.id === calibrationAfter : index === 0;
+      const legacyPoint = calibrationAfter ? items[index - 1]?.id === calibrationAfter : index === 0;
+      if (!calibrationApplied) {
+        if (hasAnchorStart && isAnchor && !Number.isFinite(item.fixedStartMinutes)) { cursor = Math.max(0, anchorStart); calibrationApplied = true; }
+        else if (legacyOffset && legacyPoint) { cursor = Math.max(0, cursor + legacyOffset); calibrationApplied = true; }
       }
       const duration = effectiveDuration(item);
       const cursorBeforeItem = cursor;
@@ -152,6 +154,8 @@
     const consumed = [];
     const ordered = next.items.slice().sort((a, b) => a.order - b.order);
     const anchorIndex = calibrationAfterItemId ? ordered.findIndex(item => item.id === calibrationAfterItemId) : -1;
+    const anchor = anchorIndex >= 0 ? ordered[anchorIndex] : (ordered[0] || null);
+    const anchorIsFixed = Boolean(anchor && Number.isFinite(anchor.fixedStartMinutes));
     if (remaining > 0) {
       for (let index = anchorIndex + 1; index < ordered.length; index += 1) {
         const item = ordered[index];
@@ -166,9 +170,19 @@
       }
     }
     const baseSchedule = schedule(next);
-    const prefix = anchorIndex >= 0 ? ordered.slice(0, anchorIndex + 1) : [];
-    const suffix = anchorIndex >= 0 ? ordered.slice(anchorIndex + 1) : ordered;
-    const suffixCursor = (anchorIndex >= 0 ? baseSchedule[anchorIndex]?.endAbsoluteMinutes ?? next.startTimeMinutes : next.startTimeMinutes) + remaining;
+    const baseStart = anchorIndex >= 0 ? (baseSchedule[anchorIndex]?.startAbsoluteMinutes ?? next.startTimeMinutes) : next.startTimeMinutes;
+    let prefix, suffix, suffixCursor;
+    if (anchorIsFixed) {
+      prefix = anchorIndex >= 0 ? ordered.slice(0, anchorIndex + 1) : [];
+      suffix = anchorIndex >= 0 ? ordered.slice(anchorIndex + 1) : ordered;
+      suffixCursor = (anchorIndex >= 0 ? (baseSchedule[anchorIndex]?.endAbsoluteMinutes ?? next.startTimeMinutes) : next.startTimeMinutes) + remaining;
+    } else {
+      const anchorNewStart = Math.max(0, baseStart + offsetMinutes);
+      prefix = anchorIndex >= 0 ? ordered.slice(0, anchorIndex + 1) : [];
+      suffix = anchorIndex >= 0 ? ordered.slice(anchorIndex + 1) : ordered;
+      suffixCursor = anchorNewStart + (anchorIndex >= 0 ? effectiveDuration(anchor) : 0);
+      next.execution = { ...(next.execution || {}), anchorStartAbsoluteMinutes: anchorNewStart };
+    }
     next.items = prefix.concat(reorderFutureAroundFixed(suffix, suffixCursor));
     next.items.forEach((item, order) => { item.order = order; });
     next.execution = {

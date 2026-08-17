@@ -21,7 +21,7 @@ test('学习和背景旧数据会删除且不再导入导出', () => { assert.ma
 test('提醒保留复选框有可见原生外观并保存 checked', () => { assert.match(countdown, /cd-keepafter[\s\S]*checked/); assert.match(css, /input\[type="checkbox"\][\s\S]*appearance: auto/); });
 test('等待中清单支持提前购买且实际价格可修改', () => { assert.match(wish, /提前购买/); assert.match(wish, /purchase-price/); assert.match(wish, /Store\.purchaseWish/); });
 test('随手花区分即时型与清单购买且清单来源只读', () => { assert.match(expense, /即时型/); assert.match(expense, /清单购买/); assert.match(expense, /item\.source === 'quick'/); });
-test('离线回退只把应用壳用于导航请求', () => { assert.match(serviceWorker, /daily-lite-v13/); assert.match(serviceWorker, /request\.mode === 'navigate'/); assert.doesNotMatch(serviceWorker, /catch\(\(\) => caches\.match\('\.\/'\)\)/); });
+test('离线回退只把应用壳用于导航请求', () => { assert.match(serviceWorker, /daily-lite-v14/); assert.match(serviceWorker, /request\.mode === 'navigate'/); assert.doesNotMatch(serviceWorker, /catch\(\(\) => caches\.match\('\.\/'\)\)/); });
 test('时间轴存储脚本随多日计划一同刷新缓存', () => { assert.match(index, /js\/store\.js\?v=13/); assert.match(serviceWorker, /js\/store\.js\?v=13/); });
 test('今日计划编辑路由脚本会刷新离线缓存', () => { assert.match(index, /js\/app\.js\?v=9/); assert.match(serviceWorker, /js\/app\.js\?v=9/); });
 test('全局导航最右侧包含时间轴入口', () => { assert.match(index, /data-page="timeline"[\s\S]*时间轴/); assert.match(css, /timeline[^}]*order: 6/); });
